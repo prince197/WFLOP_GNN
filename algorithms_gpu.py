@@ -24,7 +24,7 @@ Identical update rules : GA, GWO, BBO, SSA, LX-SSA, QA-SSA
 Changed, deliberately  : PSO and DE become SYNCHRONOUS
                          (generational) instead of asynchronous
                          (steady-state), and GWO now reports
-                         best-so-far. See README_GPU.md section 4.
+                         best-so-far. See README.md section 7.
 
 Random numbers are drawn in a different order from the original
 per-individual loops, so a GPU run is statistically equivalent to
@@ -160,7 +160,7 @@ class GA(_Base):
 
 
 # ===============================================================
-# PSO - SYNCHRONOUS variant (see README_GPU.md section 4)
+# PSO - SYNCHRONOUS variant (see README.md section 7)
 # ===============================================================
 class PSO(_Base):
     name = "PSO"
@@ -211,7 +211,7 @@ class PSO(_Base):
 
 
 # ===============================================================
-# DE/rand/1/bin - SYNCHRONOUS variant (see README_GPU.md section 4)
+# DE/rand/1/bin - SYNCHRONOUS variant (see README.md section 7)
 # ===============================================================
 class DE(_Base):
     name = "DE"
@@ -554,7 +554,8 @@ def build(name, **overrides):
     module - the two names are otherwise indistinguishable to a caller.
     """
     if name not in ALGORITHMS and name.startswith("GNN"):
-        import gnn_algorithms_gpu          # noqa: F401  (registers on import)
+        import importlib
+        importlib.import_module("gnn_algorithms_gpu")   # registers on import
     if name not in ALGORITHMS:
         raise KeyError(f"unknown algorithm {name!r}; "
                        f"available: {', '.join(sorted(ALGORITHMS))}")
@@ -650,7 +651,7 @@ class ACO(_Base):
                 new_g = sample_disk((n_runs,))
                 loc = xp.stack([cur[ar, 2 * i], cur[ar, 2 * i + 1]], axis=-1)
                 new_l = loc + xp.asarray(
-                    rng.normal(0.0, 1.0, (n_runs, 2)), dtype=DTYPE) * sigma_t
+                    rng.standard_normal((n_runs, 2)), dtype=DTYPE) * sigma_t
                 new = xp.clip(xp.where(glob[:, None], new_g, new_l), lb, ub)
 
                 cand = cur.copy()
@@ -705,7 +706,7 @@ class PF(_Base):
 
         for t in range(1, iters + 1):
             sigma_t = (sigma0 + (sigma_min - sigma0) * (t / iters)) * span
-            X = xp.clip(X + xp.asarray(rng.normal(0.0, 1.0, X.shape),
+            X = xp.clip(X + xp.asarray(rng.standard_normal(X.shape),
                                        dtype=DTYPE) * sigma_t, lb, ub)
             fit = _eval(f, X, ne)
 

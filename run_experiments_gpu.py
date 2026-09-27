@@ -41,10 +41,18 @@ checkpoint is read on startup and completed groups are skipped.
 Grid: 500 m carries 2-10 turbines, 750 m carries 2-14 and 1000 m
 carries 2-18, i.e. 39 cases per wind data set.
 
-Output schema:
+Output schema (RESULT_COLUMNS below):
 
     Radius, Turbines, Seed, Algorithm, WakeLoss, EnergyProduction,
-    Runtime, Evaluations, SurrogateEvaluations, Dataset, Coordinates
+    Runtime, RuntimeSingleRun, Evaluations, ObjectiveCalls,
+    SurrogateInferences, SurrogateTrainPasses, Iterations,
+    GateAdmissionRate, Dataset, Coordinates
+
+Output files are results/RawResults_ds<D><suffix>.csv, where the suffix is
+built from WFLOP_TAG, WFLOP_SMOKE ("_smoke") and WFLOP_BUDGET ("_B<n>"), so
+the fixed-iteration campaign, the fixed-budget campaign, a smoke test and an
+ablation never share a file. A checkpoint is resumed only under the settings
+it was written with (runs, population, iterations, budget, overrides, dtype).
 
 TURBINE COORDINATES
 -------------------
@@ -158,7 +166,6 @@ from concurrent.futures import ProcessPoolExecutor
 from backend import xp, asnumpy, device_info, USING_GPU
 from objective_gpu import make_objective, energy_production_batch
 from algorithms_gpu import build
-import gnn_algorithms_gpu  # noqa: F401  (registers the four GNN optimizers)
 
 # ------------------------------------------------------------------
 FARM_CASES = {500: range(2, 11), 750: range(2, 15), 1000: range(2, 19)}
@@ -186,7 +193,8 @@ if DATASET not in (1, 2):
 
 # WFLOP_SMOKE=1 runs a two-minute version of the campaign so you can prove the
 # whole pipeline works on the GPU node before queuing the real job.
-if os.environ.get("WFLOP_SMOKE") == "1":
+SMOKE = os.environ.get("WFLOP_SMOKE") == "1"
+if SMOKE:
     FARM_CASES = {500: range(4, 6)}
     NUM_RUNS, POP, ITER = 4, 8, 10
 
@@ -276,26 +284,43 @@ ALGO_KWARGS = json.loads(os.environ.get("WFLOP_ALGO_KWARGS", "{}"))
 RUN_TAG = os.environ.get("WFLOP_TAG", "")
 
 
+def _gnn_setting(alg_name, key, default):
+    """A GNN cost-model parameter, honouring WFLOP_ALGO_KWARGS overrides so an
+    ablation that changes n_pretrain, fd_* or mu keeps the budget exact."""
+    return ALGO_KWARGS.get(alg_name, {}).get(key, default)
+
+
 def mandatory_cost(alg_name, n_turb):
-    """Exact evaluations spent BEFORE the iterative search begins."""
+    """Exact evaluations spent BEFORE the iterative search begins.
+
+    For the GNN family this is an upper bound: a run with fewer feasible
+    pre-training samples than n_fd receives (and is charged) fewer
+    finite-difference labels, exactly as in the CPU code."""
     if alg_name == "ACO":
         return 1                                  # single pheromone baseline
     if alg_name.startswith("GNN"):
-        n_fd = min(FD_MAX, max(1, int(FD_FRACTION * (N_PRETRAIN + POP))))
-        return POP + N_PRETRAIN + 4 * n_turb * n_fd
+        n_pre = _gnn_setting(alg_name, "n_pretrain", N_PRETRAIN)
+        frac = _gnn_setting(alg_name, "fd_fraction", FD_FRACTION)
+        fmax = _gnn_setting(alg_name, "fd_max", FD_MAX)
+        n_fd = min(fmax, max(1, int(frac * (n_pre + POP))), n_pre)
+        return POP + n_pre + 4 * n_turb * n_fd
     return POP                                    # initial population
 
 
 def per_iteration_cost(alg_name, n_turb):
-    """Exact evaluations per iteration; None when data-dependent (UQ)."""
+    """Exact evaluations per iteration; None when data-dependent (UQ).
+
+    For the non-UQ GNN family this is an upper bound: the two exploration
+    probes are not charged again when they coincide with a top-mu pick."""
     if alg_name in ("LXSSA", "QASSA"):
-        return 2 * POP
+        return POP + 2 * (POP - POP // 2)         # pop, +2 per follower
     if alg_name == "ACO":
         return n_turb + POP
     if alg_name.startswith("GNN"):
         if alg_name.endswith("_UQ"):
             return None                           # gate decides, run to run
-        return int(np.ceil(MU * 2 * POP)) + 2
+        mu = _gnn_setting(alg_name, "mu", MU)
+        return max(1, int(np.ceil(mu * 2 * POP))) + 2
     return POP
 
 
@@ -403,9 +428,30 @@ def parse_coordinates(text):
 # WFLOP_TAG keeps an ablation's outputs beside the main campaign's instead of
 # on top of them: every path below picks up the tag, so an ablation can never
 # overwrite the frozen results the papers are built from.
-_TAG = f"_{RUN_TAG}" if RUN_TAG else ""
+#
+# The fixed-budget regime and the smoke test get their OWN files as well, so
+# neither can be mistaken for - or resumed from - the fixed-iteration campaign.
+_TAG = "".join(f"_{p}" for p in (RUN_TAG,
+                                 "smoke" if SMOKE else "",
+                                 f"B{BUDGET}" if BUDGET else "") if p)
 CHECKPOINT_PATH = f"results/RawResults_checkpoint_ds{DATASET}{_TAG}.csv"
+SETTINGS_PATH = f"results/RawResults_checkpoint_ds{DATASET}{_TAG}.settings.json"
 FINAL_PATH = f"results/RawResults_ds{DATASET}{_TAG}.csv"
+CALIBRATION_PATH = f"results/uq_calibration_ds{DATASET}{_TAG}.csv"
+
+
+def run_settings():
+    """Everything that changes what a finished group contains. A checkpoint
+    is only resumed when these match the settings it was written with -
+    otherwise a smoke run, a pilot with fewer seeds or a different budget
+    would be silently counted as finished work."""
+    return {"dataset": DATASET, "runs": NUM_RUNS, "pop": POP, "iters": ITER,
+            "budget": BUDGET,
+            "uq_max_iters": int(os.environ.get("WFLOP_UQ_MAX_ITERS", 0)) or None,
+            "algo_kwargs": ALGO_KWARGS,
+            "dtype": os.environ.get("WFLOP_DTYPE", "float64").lower(),
+            "surrogate_dtype": os.environ.get("WFLOP_SURROGATE_DTYPE",
+                                              "float32").lower()}
 
 # ---------------------------------------------------------------------------
 # CONVERGENCE CURVES
@@ -466,8 +512,8 @@ def store_best_curve(radius, n_turb, alg_name, curves, wake, axis=None):
     all over the same 30 runs. `evals` is what makes an efficiency figure
     possible: plot curves against it instead of against the iteration index
     and you get best-so-far wake loss versus exact objective evaluations,
-    which is the comparison a fixed-iteration campaign cannot show. The best-of-30 curve is what the user asked
-    for; the median and band are stored beside it because a best-of-30 curve
+    which is the comparison a fixed-iteration campaign cannot show. The best-of-30 curve is the
+    headline figure; the median and band are stored beside it because a best-of-30 curve
     alone is a favourable order statistic and a reviewer will ask what the
     typical run did. Storing them costs three extra rows per algorithm.
     """
@@ -510,6 +556,37 @@ def store_best_curve(radius, n_turb, alg_name, curves, wake, axis=None):
                         radius=np.array(radius),
                         turbines=np.array(n_turb),
                         dataset=np.array(DATASET))
+
+
+def check_settings():
+    """Refuse to resume a checkpoint written under different settings."""
+    now = run_settings()
+    if os.path.exists(SETTINGS_PATH):
+        with open(SETTINGS_PATH) as fh:
+            old = json.load(fh)
+        diff = {k: (old.get(k), now.get(k)) for k in set(old) | set(now)
+                if old.get(k) != now.get(k)}
+        if diff:
+            lines = "\n".join(f"    {k}: checkpoint {a!r}  now {b!r}"
+                              for k, (a, b) in sorted(diff.items()))
+            raise SystemExit(
+                f"{CHECKPOINT_PATH} was written with different settings:\n"
+                f"{lines}\n"
+                "Resuming would mix incompatible runs in one results file.\n"
+                "Use a different WFLOP_TAG, or move the old results/ files "
+                "away deliberately, then start again.")
+    elif os.path.exists(CHECKPOINT_PATH):
+        # A checkpoint from before settings were recorded: accept it only if
+        # every group in it holds exactly NUM_RUNS seeds.
+        df = pd.read_csv(CHECKPOINT_PATH)
+        n = df.groupby(["Radius", "Turbines", "Algorithm"]).Seed.nunique()
+        if len(n) and (n != NUM_RUNS).any():
+            raise SystemExit(
+                f"{CHECKPOINT_PATH} has groups with a seed count other than "
+                f"{NUM_RUNS} and no settings record; it was written under "
+                "different settings and cannot be resumed.")
+    with open(SETTINGS_PATH, "w") as fh:
+        json.dump(now, fh, indent=2, sort_keys=True)
 
 
 def load_checkpoint():
@@ -609,7 +686,9 @@ def run_group(group):
     oc = np.broadcast_to(
         np.atleast_1d(asnumpy(getattr(algo, "n_objective_calls", n_evals))),
         (NUM_RUNS,))
-    surro = int(getattr(algo, "n_surrogate_evals", 0)) // max(1, NUM_RUNS)
+    # n_surrogate_evals is already a per-run count (candidates x members);
+    # n_train_forwards is a total over all runs, so only that one is divided.
+    surro = int(getattr(algo, "n_surrogate_evals", 0))
     strain = int(getattr(algo, "n_surrogate_train", 0)) // max(1, NUM_RUNS)
     grate = np.broadcast_to(
         np.atleast_1d(np.asarray(getattr(algo, "gate_rate", 0.0), dtype=float)),
@@ -679,7 +758,7 @@ def write_manifest():
     precision. This file closes that gap - it hashes every source file, so a
     later reader can prove the results and the code match.
     """
-    import json, platform
+    import platform
     src = {}
     here = os.path.dirname(os.path.abspath(__file__))
     for fn in sorted(f for f in os.listdir(here) if f.endswith(".py")):
@@ -699,10 +778,7 @@ def write_manifest():
     # constants, the statistical protocol and the source hashes.
     import algorithms_gpu as _A
     import objective_gpu as _O
-    try:
-        import gnn_algorithms_gpu as _G                       # noqa: F401
-    except Exception:
-        pass
+    importlib.import_module("gnn_algorithms_gpu")   # registers GNN defaults
 
     def _arr_hash(a):
         return hashlib.sha256(np.ascontiguousarray(
@@ -789,8 +865,9 @@ def write_manifest():
                      "cupy": cupy_ver, "platform": platform.platform()},
         "source_sha256": src,
     }
-    if RUN_TAG:
-        manifest["tag"] = RUN_TAG
+    if _TAG:
+        manifest["tag"] = _TAG.lstrip("_")
+    manifest["checkpoint_settings"] = run_settings()
     os.makedirs("results", exist_ok=True)
     path = f"results/manifest_ds{DATASET}{_TAG}.json"
     with open(path, "w") as fh:
@@ -799,6 +876,9 @@ def write_manifest():
 
 
 def main():
+    # Before anything is written: a checkpoint from different settings must
+    # stop the run without touching its manifest or results.
+    check_settings()
     print("=" * 74)
     print("WFLOP GPU CAMPAIGN")
     print(device_info())
@@ -809,7 +889,7 @@ def main():
           f"({THREADS_PER_WORKER} BLAS thread(s) each)")
     print(f"wind data set            : {DATASET}")
     print(f"algorithms               : {', '.join(ALGORITHM_NAMES)}")
-    print(f"regime                   : "
+    print("regime                   : "
           + (f"fixed budget, {BUDGET} exact evaluations per run"
              if BUDGET else f"fixed iterations ({ITER})"))
     print(f"manifest                 : {write_manifest()}")
@@ -840,7 +920,12 @@ def main():
         gi += 1
 
         if calib:
+            # Appended as each group finishes, like the checkpoint, so a
+            # resumed campaign keeps the calibration of earlier sessions.
             calibration.extend(calib)
+            new = not os.path.exists(CALIBRATION_PATH)
+            pd.DataFrame(calib, columns=CALIBRATION_COLUMNS).to_csv(
+                CALIBRATION_PATH, mode="a", header=new, index=False)
 
         if rows is None:                      # budget-infeasible: record, skip
             mand = mandatory_cost(alg_name, n_turb)
@@ -897,11 +982,8 @@ def main():
     print(f"raw results sealed: {seal}")
 
     if calibration:
-        path = f"results/uq_calibration_ds{DATASET}{_TAG}.csv"
-        pd.DataFrame(calibration, columns=CALIBRATION_COLUMNS).to_csv(
-            path, index=False)
-        print(f"UQ calibration written to {path} "
-              f"({len(calibration)} bin rows)")
+        print(f"UQ calibration appended to {CALIBRATION_PATH} "
+              f"({len(calibration)} new bin rows)")
 
     if infeasible:
         path = f"results/budget_infeasible_ds{DATASET}{_TAG}.csv"

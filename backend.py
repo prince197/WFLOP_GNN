@@ -25,7 +25,7 @@ to a wake loss of order 1e3, the wake-loss information is lost
 entirely. On an A100 the FP64 throughput is 9.7 TFLOP/s, so there
 is no reason to trade accuracy here. float32 is offered for cards
 with weak FP64 (consumer GPUs), where you should also lower the
-penalty coefficient - see README_GPU.md.
+penalty coefficient - see README.md.
 ============================================================
 """
 

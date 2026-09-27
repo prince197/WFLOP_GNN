@@ -6,6 +6,7 @@ COMBINED RAW RESULTS  -  one workbook, one sheet per data set
     python combine_results.py                  # data sets 1 and 2
     python combine_results.py --datasets 1     # just one
     python combine_results.py --tag ABL_A      # an ablation's outputs
+    python combine_results.py --budget 3000    # the fixed-budget campaign
     python combine_results.py --out My.xlsx
 
 Reads what the campaign wrote for each wind data set and puts them
@@ -99,10 +100,18 @@ def main():
     ap.add_argument("--tag", default="",
                     help="WFLOP_TAG of an ablation, to combine its outputs "
                          "instead of the main campaign's")
+    ap.add_argument("--budget", type=int, default=None,
+                    help="combine the fixed-budget campaign (WFLOP_BUDGET)")
+    ap.add_argument("--smoke", action="store_true",
+                    help="combine the WFLOP_SMOKE=1 pipeline check")
     ap.add_argument("--out", default=None, help="output workbook name")
     args = ap.parse_args()
 
-    tag = f"_{args.tag}" if args.tag else ""
+    # same suffix rule as run_experiments_gpu.py
+    tag = "".join(f"_{p}" for p in (args.tag,
+                                    "smoke" if args.smoke else "",
+                                    f"B{args.budget}" if args.budget else "")
+                  if p)
     out = args.out or (f"WFLOP_RawResults_AllDatasets{tag}.xlsx")
 
     print("=" * 74)

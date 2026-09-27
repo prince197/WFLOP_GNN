@@ -25,8 +25,9 @@ closing the terminal or dropping the SSH connection does not kill it.
 
 STOPPING AND RESUMING IS SAFE
 -----------------------------
-`stop` lets the current group finish is NOT what happens - it stops the
-process, and whatever groups had already completed are in the checkpoint.
+`stop` does NOT wait for the current group to finish - it stops the
+process at once, and whatever groups had already completed are in the
+checkpoint.
 Starting again resumes from there, at (radius, turbines, algorithm)
 granularity, so nothing already computed is recomputed. That is the same
 mechanism a SLURM wall-clock timeout relies on.
@@ -39,16 +40,18 @@ to see what is running, or `stop` first.
 
 WHERE TO RUN IT
 ---------------
-On a compute node (an interactive GPU allocation, e.g.
-`salloc --partition=gpu --gres=gpu:a100:1 --cpus-per-task=32`), or on any
-machine with the GPU. Do NOT run the full campaign on a login node: it is
+On a compute node - a GPU allocation (e.g.
+`salloc --partition=gpu --gres=gpu:a100:1 --cpus-per-task=32`) or a CPU one
+(e.g. `salloc --cpus-per-task=64`) - or on any workstation. The default
+backend is `auto`: the GPU when CuPy and a device are present, else the CPU. Do NOT run the full campaign on a login node: it is
 hours of compute, login nodes are shared, and most sites kill such jobs.
 For a batch queue use submit_gpu.slurm instead - that is what it is for.
 
 OPTIONS
 -------
     --datasets 1 2        which wind data sets, in order (default: 1 2)
-    --backend gpu|cpu|auto        default: gpu (fails loudly without CUDA)
+    --backend gpu|cpu|auto        default: auto (GPU if available, else CPU);
+                                  gpu fails loudly without CUDA
     --papers 1 2 3 4      which paper analyses to run (default: all four)
     --skip-validation     skip validate_gpu.py (not recommended)
     --budget N            fixed-evaluation regime (WFLOP_BUDGET)
@@ -115,7 +118,16 @@ def running_pid():
 # ---------------------------------------------------------------------------
 # progress
 # ---------------------------------------------------------------------------
-def expected_groups(dataset):
+def suffix(args):
+    """File suffix of the campaign run_all drives - same rule as
+    run_experiments_gpu.py (smoke and budget runs get their own files)."""
+    return "".join(f"_{p}" for p in (
+        os.environ.get("WFLOP_TAG", ""),
+        "smoke" if getattr(args, "smoke", False) else "",
+        f"B{args.budget}" if getattr(args, "budget", None) else "") if p)
+
+
+def expected_groups(dataset, sfx=""):
     """Groups in one data set's campaign: cases x algorithms.
 
     Read from the manifest the campaign itself wrote, so this cannot drift
@@ -123,7 +135,7 @@ def expected_groups(dataset):
     smoke run all change it). Falls back to the full grid before the first
     manifest exists.
     """
-    path = os.path.join(HERE, "results", f"manifest_ds{dataset}.json")
+    path = os.path.join(HERE, "results", f"manifest_ds{dataset}{sfx}.json")
     try:
         with open(path) as fh:
             m = json.load(fh)["settings"]
@@ -132,10 +144,10 @@ def expected_groups(dataset):
         return 39 * 14
 
 
-def done_groups(dataset):
+def done_groups(dataset, sfx=""):
     """Completed groups, counted from the checkpoint the campaign appends to."""
     path = os.path.join(HERE, "results",
-                        f"RawResults_checkpoint_ds{dataset}.csv")
+                        f"RawResults_checkpoint_ds{dataset}{sfx}.csv")
     if not os.path.exists(path):
         return 0
     seen = set()
@@ -165,6 +177,13 @@ def worker(args):
         return subprocess.call(cmd, cwd=HERE)
 
     failures = []
+    extra = []                     # which campaign files report/combine read
+    if args.budget:
+        extra += ["--budget", str(args.budget)]
+    if args.smoke:
+        extra += ["--smoke"]
+    if os.environ.get("WFLOP_TAG"):
+        extra += ["--tag", os.environ["WFLOP_TAG"]]
     write_state(stage="validation", dataset=None, failures=[])
 
     if not args.skip_validation:
@@ -199,7 +218,7 @@ def worker(args):
             # A failing paper is recorded and does not stop the rest: with a
             # restricted WFLOP_ALGOS some papers legitimately have no data.
             if run([PY, "report.py", "--dataset", str(ds),
-                    "--paper", str(p)], f"report ds{ds} p{p}") != 0:
+                    "--paper", str(p), *extra], f"report ds{ds} p{p}") != 0:
                 failures.append(f"report_ds{ds}_paper{p}")
                 write_state(failures=failures)
 
@@ -208,7 +227,7 @@ def worker(args):
     print("COMBINED RAW RESULTS")
     print("=" * 74, flush=True)
     if run([PY, "combine_results.py", "--datasets",
-            *[str(d) for d in args.datasets]], "combine") != 0:
+            *[str(d) for d in args.datasets], *extra], "combine") != 0:
         failures.append("combine")
 
     write_state(stage="done" if not failures else "done_with_failures",
@@ -222,7 +241,7 @@ def worker(args):
         print("FINISHED - every step succeeded.")
     print(time.strftime("%Y-%m-%d %H:%M:%S"))
     print("=" * 74, flush=True)
-    return 0
+    return 1 if failures else 0
 
 
 # ---------------------------------------------------------------------------
@@ -259,6 +278,10 @@ def cmd_start(args):
            "--backend", args.backend]
     if args.skip_validation:
         cmd.append("--skip-validation")
+    if args.budget:
+        cmd += ["--budget", str(args.budget)]
+    if args.smoke:
+        cmd.append("--smoke")
 
     with open(log, "w") as fh:
         # start_new_session detaches the child from this terminal, so it keeps
@@ -272,7 +295,7 @@ def cmd_start(args):
         fh.write(str(proc.pid))
     write_state(pid=proc.pid, log=log, stage="starting",
                 datasets=args.datasets, papers=args.papers,
-                backend=args.backend, failures=[],
+                backend=args.backend, failures=[], suffix=suffix(args),
                 started=time.strftime("%Y-%m-%d %H:%M:%S"))
 
     print("=" * 70)
@@ -308,8 +331,9 @@ def cmd_status(args):
     print(f"started {s.get('started', '?')}   updated {s.get('updated', '?')}")
     print("=" * 70)
 
+    sfx = s.get("suffix", "")
     for ds in s.get("datasets", [1, 2]):
-        exp, got = expected_groups(ds), done_groups(ds)
+        exp, got = expected_groups(ds, sfx), done_groups(ds, sfx)
         frac = got / exp if exp else 0.0
         print(f"data set {ds}  {bar(frac)} {got:4d}/{exp:<4d} groups "
               f"({frac*100:5.1f}%)")
@@ -377,7 +401,7 @@ def main():
                     choices=(1, 2))
     ap.add_argument("--papers", type=int, nargs="+", default=[1, 2, 3, 4],
                     choices=(1, 2, 3, 4))
-    ap.add_argument("--backend", default="gpu", choices=("gpu", "cpu", "auto"))
+    ap.add_argument("--backend", default="auto", choices=("gpu", "cpu", "auto"))
     ap.add_argument("--budget", type=int, default=None)
     ap.add_argument("--smoke", action="store_true")
     ap.add_argument("--skip-validation", action="store_true")

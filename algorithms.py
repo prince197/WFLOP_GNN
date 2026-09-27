@@ -1579,7 +1579,6 @@ try:
         R as _WTR, K as _WTK, CT as _WTCT,
         OMEGA_SCEN1, IDEAL_POWER_SCEN1, PSI_SCEN1,
         OMEGA_SCEN2, IDEAL_POWER_SCEN2, PSI_SCEN2,
-        OMEGA_SCEN3, IDEAL_POWER_SCEN3, PSI_SCEN3
     )
 except Exception:                                   # standalone fallback
     _WTR, _WTK, _WTCT = 38.5, 0.075, 0.8
@@ -1589,7 +1588,6 @@ except Exception:                                   # standalone fallback
     IDEAL_POWER_SCEN1 = 14045.7374
     PSI_SCEN1 = np.full(24, 13.0)
     OMEGA_SCEN2, IDEAL_POWER_SCEN2, PSI_SCEN2 = OMEGA_SCEN1, IDEAL_POWER_SCEN1, PSI_SCEN1
-    OMEGA_SCEN3, IDEAL_POWER_SCEN3, PSI_SCEN3 = OMEGA_SCEN1, IDEAL_POWER_SCEN1, PSI_SCEN1
 
 _ALPHA_CONE = np.arctan(_WTK)
 _AJ = 1.0 - np.sqrt(1.0 - _WTCT)
@@ -1609,8 +1607,6 @@ _DATASETS = {
             psibar=_psi_bar(OMEGA_SCEN1, PSI_SCEN1)),
     2: dict(omega=OMEGA_SCEN2, ideal=IDEAL_POWER_SCEN2,
             psibar=_psi_bar(OMEGA_SCEN2, PSI_SCEN2)),
-    3: dict(omega=OMEGA_SCEN3, ideal=IDEAL_POWER_SCEN3,
-            psibar=_psi_bar(OMEGA_SCEN3, PSI_SCEN3)),   # Horns Rev 1
 }
 
 _OMEGA = _DATASETS[1]["omega"]      # active blowing-probability profile
@@ -1619,7 +1615,7 @@ _PSIBAR = _DATASETS[1]["psibar"]    # active direction-averaged scale
 
 
 def set_active_dataset(dataset):
-    """Select Wind Data Set 1, 2 or 3 (Horns Rev 1) for the surrogate/optimizer globals."""
+    """Select Wind Data Set 1 or 2 for the surrogate/optimizer globals."""
     global _OMEGA, _IDEALP, _PSIBAR
     cfg = _DATASETS.get(int(dataset), _DATASETS[1])
     _OMEGA = cfg["omega"]
@@ -2320,7 +2316,6 @@ class GNNLXSSA_UQ(GNNLXSSA):
         ens = [make_gnwm(self.hidden, self.mp_layers,
                          seed=base_seed + 31 * m, backend=self.backend)
                for m in range(self.n_models)]
-        rng = np.random.default_rng(base_seed)
 
         # Warm-start every ensemble member from the offline-pre-trained
         # GNWM if available (paper Sec. IV); ensemble diversity then comes
@@ -2444,7 +2439,6 @@ class GNNLXSSA_UQ(GNNLXSSA):
 
             # ---- verify the generation best exactly (trust anchor) ----
             gb = int(np.argmin(score))
-            mean_kW = score[gb]
             f = exact(allc[gb])
             score[gb] = f
             add_sample(allc[gb].reshape(N, 2), f)

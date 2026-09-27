@@ -9,6 +9,10 @@
 #SBATCH --output=logs/cpu_output_%j.out
 #SBATCH --error=logs/cpu_error_%j.err
 
+# IMPORTANT: SLURM does NOT create the directory in --output. Run
+#     mkdir -p logs results curves
+# once, in this directory, before the first sbatch.
+
 # ---------------------------------------------------------------------------
 # CPU campaign - no GPU required.
 #
@@ -47,6 +51,13 @@ export WFLOP_MEM_BUDGET_MB=1024
 
 mkdir -p logs results curves
 
+# The report and combine steps must read the same files the campaign writes:
+# a fixed-budget run (export WFLOP_BUDGET=3000) or a tagged run
+# (export WFLOP_TAG=...) writes results/RawResults_ds<D>_<tag>_B<n>.csv.
+SEL=""
+[ -n "$WFLOP_TAG" ] && SEL="$SEL --tag $WFLOP_TAG"
+[ -n "$WFLOP_BUDGET" ] && SEL="$SEL --budget $WFLOP_BUDGET"
+
 echo "--- validation -------------------------------------------"
 python validate_gpu.py || { echo "VALIDATION FAILED - stopping"; exit 1; }
 
@@ -59,17 +70,16 @@ for DS in 1 2; do
     # Same four-paper reporting as submit_gpu.slurm: report.py requires a
     # pre-specified reference (--paper or --reference) and would exit 1 without
     # one. Each call writes WFLOP_Report_ds<D>_paper<N>.xlsx.
-    python report.py --dataset $DS --paper 1
-    python report.py --dataset $DS --paper 2
-    python report.py --dataset $DS --paper 3
-    python report.py --dataset $DS --paper 4
+    for P in 1 2 3 4; do
+        python report.py --dataset $DS --paper $P $SEL
+    done
 done
 
 echo "--- combined raw results ---------------------------------"
 # Both data sets side by side in one workbook, one sheet each
 # (RawResults_DS1, RawResults_DS2). Statistics stay in the per-paper
 # workbooks; this is a transport step, written after the seals are verified.
-python combine_results.py --datasets 1 2
+python combine_results.py --datasets 1 2 $SEL
 
 echo "Finished."
 date

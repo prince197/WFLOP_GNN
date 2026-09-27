@@ -78,7 +78,8 @@ class BatchedGNWM:
         rng = get_rng(seed)
 
         def xav(a, b):
-            w = rng.normal(0.0, (2.0 / (a + b)) ** 0.5, (self.RM, a, b))
+            # standard_normal * sd: cupy.random.Generator has no normal()
+            w = rng.standard_normal((self.RM, a, b)) * (2.0 / (a + b)) ** 0.5
             return xp.asarray(w, dtype=SDTYPE)
 
         def zeros(*shape):
@@ -98,7 +99,7 @@ class BatchedGNWM:
 
         self.m = {k: xp.zeros_like(v) for k, v in self.p.items()}
         self.v = {k: xp.zeros_like(v) for k, v in self.p.items()}
-        self.t = 0
+        self.t = xp.zeros((self.RM,), dtype=SDTYPE)   # Adam step, per row
 
     # -----------------------------------------------------------
     # forward
@@ -226,19 +227,31 @@ class BatchedGNWM:
         return g
 
     # -----------------------------------------------------------
-    def adam(self, grads, lr=1e-3):
-        self.t += 1
-        b1c = 1 - 0.9 ** self.t
-        b2c = 1 - 0.999 ** self.t
+    def adam(self, grads, lr=1e-3, active=None):
+        """Adam step. `active` (RM,) bool updates only those rows (weights,
+        moments and step count); the others are left exactly as they were,
+        so each run's surrogate is trained only when its own retraining is
+        due - as the CPU code does with one surrogate per run."""
+        act = (xp.ones((self.RM,), dtype=bool) if active is None
+               else active.astype(bool))
+        self.t = self.t + act.astype(SDTYPE)
+        tt = xp.maximum(self.t, 1.0)
+        b1c = 1 - 0.9 ** tt
+        b2c = 1 - 0.999 ** tt
         for k in self.p:
             gk = grads[k]
-            self.m[k] = 0.9 * self.m[k] + 0.1 * gk
-            self.v[k] = 0.999 * self.v[k] + 0.001 * gk * gk
-            self.p[k] = self.p[k] - lr * (self.m[k] / b1c) / (
-                xp.sqrt(self.v[k] / b2c) + 1e-8)
+            shp = (self.RM,) + (1,) * (gk.ndim - 1)
+            a = act.reshape(shp)
+            m = 0.9 * self.m[k] + 0.1 * gk
+            v = 0.999 * self.v[k] + 0.001 * gk * gk
+            p = self.p[k] - lr * (m / b1c.reshape(shp)) / (
+                xp.sqrt(v / b2c.reshape(shp)) + 1e-8)
+            self.m[k] = xp.where(a, m, self.m[k])
+            self.v[k] = xp.where(a, v, self.v[k])
+            self.p[k] = xp.where(a, p, self.p[k]).astype(SDTYPE)
 
     def train(self, Xn, Eattr, mask, target, gfd=None, epochs=1, batch=16,
-              lr=1e-3, lambda_g=0.5, rng=None, valid=None):
+              lr=1e-3, lambda_g=0.5, rng=None, valid=None, active=None):
         """One joint training pass. Shapes carry the sample axis in G:
             Xn (RM,S,N,7)  Eattr (RM,S,N,N,5)  mask (RM,S,N,N)
             target (RM,S)  gfd (RM,S,N,2) or None (NaN rows = no label)
@@ -246,6 +259,7 @@ class BatchedGNWM:
             (unlabelled, or penalty-contaminated) contribute NOTHING to
             the loss, matching the CPU code, which simply never puts
             them in the replay buffer.
+            active (RM,) bool or None - rows to update (None = all).
         """
         S = Xn.shape[1]
         if S == 0:
@@ -274,7 +288,8 @@ class BatchedGNWM:
                 # inference: they are a cost of building the surrogate, not a
                 # substitute for an exact evaluation, and conflating the two
                 # inflates the apparent surrogate load.
-                self.n_train_forwards += nb * self.RM
+                self.n_train_forwards += nb * (
+                    self.RM if active is None else int(xp.sum(active)))
                 if valid is None:
                     wb = xp.ones_like(P)
                 else:
@@ -300,7 +315,7 @@ class BatchedGNWM:
                                    * wb)[:, :, None, None]
 
                 grads = self.backward(cache, dP, dG)
-                self.adam(grads, lr)
+                self.adam(grads, lr, active=active)
 
 
 # ===============================================================

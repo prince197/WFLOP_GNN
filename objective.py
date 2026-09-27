@@ -1,8 +1,8 @@
 """BUNDLED CPU REFERENCE - used only by validate_gpu.py.
 
-This is the v34 objective.py with ONE change: Wind Data Set III
-(Horns Rev 1) has been removed at the user's request, so the
-`import hornsrev` at the top is gone and dataset=3 now raises.
+This is the original per-layout objective with ONE change: Wind Data
+Set III (Horns Rev 1) is not included, so the `import hornsrev` at the
+top is gone and dataset=3 raises.
 Data Sets I and II are untouched.
 """
 

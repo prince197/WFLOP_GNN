@@ -60,8 +60,10 @@ def get_array_module(*args):            # real CuPy has this
 # package is allowed to use.
 # ---------------------------------------------------------------------------
 class _Generator:
-    _ALLOWED = ("random", "integers", "normal", "uniform", "standard_normal",
-                "permutation", "shuffle")
+    # Checked against cupy.random.Generator in CuPy 14.2: it has NO normal(),
+    # permutation() or shuffle() - use standard_normal() and argsort of
+    # random keys instead.
+    _ALLOWED = ("random", "integers", "uniform", "standard_normal")
 
     def __init__(self, seed=None):
         self._g = _np.random.default_rng(seed)

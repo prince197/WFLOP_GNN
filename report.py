@@ -9,6 +9,8 @@ Reads what the campaign wrote and produces the analysis:
     python report.py --dataset 2
     python report.py --dataset 1 --paper 1    # one paper's comparison set
     python report.py --algorithms GA,SSA,GNNLXSSA --reference GNNLXSSA
+    python report.py --dataset 1 --paper 1 --budget 3000   # fixed-budget run
+    python report.py --dataset 1 --reference GNNQASSA --tag abl_C_guidance
 
 THE FOUR PAPERS
 ---------------
@@ -24,12 +26,16 @@ being compared - slicing a 14-algorithm analysis would be wrong.
 
 Inputs
 ------
-    results/RawResults_ds<D>.csv     one row per run
-    curves/Conv_ds<D>_R*_T*.npz      one file per case (optional)
+    results/RawResults_ds<D>[_<tag>][_smoke][_B<budget>].csv   one row per run
+    curves/Conv_ds<D>[...]_R*_T*.npz one file per case (optional)
+
+    The suffix mirrors run_experiments_gpu.py: WFLOP_TAG, WFLOP_SMOKE and
+    WFLOP_BUDGET each give a campaign its own files, and --tag, --smoke and
+    --budget here select them.
 
 Output
 ------
-    WFLOP_Report_ds<D>.xlsx          multi-sheet workbook
+    WFLOP_Report_ds<D>[suffix][_paper<N>].xlsx   multi-sheet workbook
     a summary printed to stdout
 
 WHAT IT COMPUTES, AND WHY IT DIFFERS FROM THE OLD SCRIPT
@@ -217,9 +223,22 @@ def main():
                     help="algorithm to compare against (default: the paper's "
                          "proposed method, else the best average rank)")
     ap.add_argument("--alpha", type=float, default=ALPHA)
+    ap.add_argument("--tag", default="",
+                    help="WFLOP_TAG of the campaign to analyse (e.g. an ablation)")
+    ap.add_argument("--budget", type=int, default=None,
+                    help="analyse the fixed-budget campaign run with "
+                         "WFLOP_BUDGET=<n>")
+    ap.add_argument("--smoke", action="store_true",
+                    help="analyse the WFLOP_SMOKE=1 pipeline check")
     args = ap.parse_args()
 
-    path = f"results/RawResults_ds{args.dataset}.csv"
+    # Same suffix rule as run_experiments_gpu.py, so each regime is analysed
+    # from its own files and none can be mistaken for another.
+    suffix = "".join(f"_{p}" for p in (args.tag,
+                                       "smoke" if args.smoke else "",
+                                       f"B{args.budget}" if args.budget else "")
+                     if p)
+    path = f"results/RawResults_ds{args.dataset}{suffix}.csv"
     if not os.path.exists(path):
         raise SystemExit(f"{path} not found - run the campaign first.")
 
@@ -251,7 +270,7 @@ def main():
     elif paper:
         wanted = paper["algorithms"]
 
-    tag = f"ds{args.dataset}"
+    tag = f"ds{args.dataset}{suffix}"
     if wanted:
         missing = [a for a in wanted if a not in set(df.Algorithm)]
         if missing:
@@ -263,7 +282,8 @@ def main():
             tag += f"_paper{args.paper}"
 
     print("=" * 74)
-    print(f"WFLOP REPORT - wind data set {args.dataset}")
+    print(f"WFLOP REPORT - wind data set {args.dataset}"
+          + (f"  ({suffix.lstrip('_')})" if suffix else ""))
     if paper:
         print(f"PAPER {args.paper}: {paper['title']}")
         print(f"proposed method  : {paper['proposed']}")
@@ -426,8 +446,8 @@ def main():
     # campaign cannot show this: the algorithms spend different amounts per
     # iteration, so an iteration-indexed curve compares them at unequal cost.
     eff = []
-    for path in sorted(glob.glob(f"curves/Conv_ds{args.dataset}_R*_T*.npz")):
-        z = np.load(path, allow_pickle=False)
+    for cpath in sorted(glob.glob(f"curves/Conv_ds{args.dataset}{suffix}_R*_T*.npz")):
+        z = np.load(cpath, allow_pickle=False)
         if "evals" not in z.files:
             continue
         for name, curve, axis in zip(z["algorithms"], z["curves"], z["evals"]):
@@ -456,7 +476,7 @@ def main():
 
     # ---- 6. convergence summary ----------------------------------------
     conv = []
-    for f in sorted(glob.glob(f"curves/Conv_ds{args.dataset}_R*_T*.npz")):
+    for f in sorted(glob.glob(f"curves/Conv_ds{args.dataset}{suffix}_R*_T*.npz")):
         d = np.load(f, allow_pickle=False)
         for name, curve, seed, wake in zip(d["algorithms"], d["curves"],
                                            d["best_seed"], d["best_wake"]):
@@ -501,10 +521,10 @@ def main():
         print(f"    wake-loss comparisons significant after Holm: "
               f"{len(sig)} of {len(wl)}")
         print(f"    of those, {reference} is the better method in {len(beat)}")
+        base_ev = budget[budget.Algorithm != reference].MeanEvaluations
         print(f"    exact evaluations per run, {reference}: "
               f"{ref_budget:,.0f} "
-              f"(baselines: {budget[budget.Algorithm != reference].MeanEvaluations.min():,.0f}"
-              f"-{budget.MeanEvaluations.max():,.0f})")
+              f"(baselines: {base_ev.min():,.0f}-{base_ev.max():,.0f})")
     print("=" * 74)
 
 

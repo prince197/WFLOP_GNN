@@ -1,8 +1,29 @@
-# WFLOP on GPU — batched port of `WFLOP_HPC_FIXED`
+# WFLOP — batched wind-farm layout optimization (CPU or GPU)
 
 **Fourteen optimizers:** GA, PSO, DE, GWO, BBO, SSA, LX-SSA, QA-SSA,
 ACO, PF, GNN-LX-SSA, GNN-QA-SSA, GNN-LX-SSA-UQ, GNN-QA-SSA-UQ.
 **Two wind data sets:** I and II.
+
+**One code base, two backends.** The same source runs on a CPU (NumPy) or
+an NVIDIA GPU (CuPy). With the default `WFLOP_BACKEND=auto` it uses the GPU
+when CuPy and a device are present and the CPU otherwise; nothing needs to be
+edited to move between a laptop, a CPU node and a GPU node.
+
+## 0. Quick start
+
+```bash
+pip install -r requirements.txt          # NumPy, SciPy, pandas, openpyxl
+# optional, GPU only: pip install cupy-cuda12x   (match your CUDA version)
+
+python validate_gpu.py                   # exits non-zero if any check fails
+WFLOP_SMOKE=1 python run_experiments_gpu.py   # ~2-minute pipeline check
+python run_experiments_gpu.py            # the campaign (data set 1)
+python report.py --dataset 1 --paper 1   # statistics for paper 1
+```
+
+Force a backend with `WFLOP_BACKEND=cpu` or `WFLOP_BACKEND=gpu` (the latter
+fails loudly rather than falling back if CUDA is unavailable). On a cluster,
+`submit_cpu.slurm` and `submit_gpu.slurm` run the whole pipeline.
 
 ## 1. How it is parallelised
 
@@ -72,14 +93,17 @@ for GPUs is long, the CPU path alone may already solve your problem.
 | `combine_results.py` | Both wind data sets in one workbook, one sheet each (`RawResults_DS1`, `RawResults_DS2`). A transport step, not an analysis: it verifies each seal, then copies the rows. |
 | `test_budget.py` | Regression test for the fixed-budget regime: 8,190 analytic (algorithm, N, budget) probes plus real runs, asserting the cap is never exceeded. Also reports the smallest feasible common budget. |
 | `run_ablations.py` | The five ablations Papers 2 and 4 need, as one command, with a summary table. |
-| `preflight.py` | Executes the pre-results checklist — 26 checks — and reports what is still outstanding. |
+| `preflight.py` | Executes the pre-results checklist — 21 checks, 28 with `--results` — and reports what is still outstanding. |
 | `tests/fake_cupy/cupy.py` | A strict CuPy stand-in that lets the GPU code path run on a machine with no GPU. Test utility only. |
-| `objective.py`, `algorithms.py` | The CPU originals, bundled **only** so `validate_gpu.py` can compare against them. Nothing imports them at run time. `objective.py` differs from your v34 copy in one respect: the Horns Rev import and the dataset-3 branch are removed, so `dataset=3` raises. |
+| `objective.py`, `algorithms.py` | The original per-layout CPU implementations, bundled **only** so `validate_gpu.py` can compare against them. Nothing imports them at run time. Wind Data Set III (Horns Rev 1) is removed from both, so `dataset=3` raises. |
+| `requirements.txt` | Python dependencies. CuPy is optional and listed as a comment. |
 
 Turbine coordinates now live **inside the results CSV**, not in per-run
-`.npy` files. The CSV keeps the original column order with six appended:
+`.npy` files. The columns are `Radius`, `Turbines`, `Seed`, `Algorithm`,
+`WakeLoss`, `EnergyProduction`, `Runtime`, `RuntimeSingleRun`,
 `Evaluations`, `ObjectiveCalls`, `SurrogateInferences`,
-`SurrogateTrainPasses`, `Iterations`, `Dataset` and `Coordinates`. The `layouts/` directory is no longer created.
+`SurrogateTrainPasses`, `Iterations`, `GateAdmissionRate`, `Dataset` and
+`Coordinates`. No `layouts/` directory is created.
 
 The three counting columns are three different quantities and are kept apart
 deliberately:
@@ -87,8 +111,8 @@ deliberately:
 | Column | Meaning | Use it for |
 |---|---|---|
 | `Evaluations` | Exact objective values the optimizer **admitted into its decisions**. | The algorithmic budget. This is the number that belongs in a paper. |
-| `ObjectiveCalls` | Exact objective evaluations actually **computed**. Equal to `Evaluations` for every algorithm except the two UQ variants, whose gated batch is padded to a rectangle so 30 seeds can be evaluated in one call. | Compute cost of the batched implementation. |
-| `SurrogateInferences` | Surrogate **forward passes** used for screening and guidance, per run. | Reporting surrogate load. Never add it to `Evaluations`: a surrogate call is orders of magnitude cheaper than an exact one. |
+| `ObjectiveCalls` | Exact objective evaluations actually **computed**. Equal to `Evaluations` for the classical algorithms. For the GNN family it can be larger: a batch of 30 seeds must be rectangular, so the UQ gate is padded to the widest run and an exploration probe that coincides with a screened candidate is computed but not charged twice. | Compute cost of the batched implementation. |
+| `SurrogateInferences` | Surrogate **forward passes** used for screening and guidance, per run (candidates × ensemble members). | Reporting surrogate load. Never add it to `Evaluations`: a surrogate call is orders of magnitude cheaper than an exact one. |
 | `SurrogateTrainPasses` | Surrogate forward passes spent **training** the model, per run. | The cost of *building* the surrogate, kept apart from the cost of *using* it. Also never added to the budget. |
 | `Iterations` | Iterations the algorithm actually ran. | Constant at 100 in the default regime; derived per algorithm under `WFLOP_BUDGET`. |
 | `GateAdmissionRate` | Fraction of candidates the uncertainty gate sent for exact evaluation, averaged over iterations, per run. 0 for every non-gated algorithm. | The number behind the efficiency claim in Papers 3 and 4 — it says how selective the gate actually was. |
@@ -137,8 +161,8 @@ fixed-iteration campaign cannot show, because the algorithms spend very
 different amounts per iteration. `report.py` also tabulates it (the
 `Efficiency` sheet) at 25/50/75/100 % of each algorithm's budget.
 
-The best-of-30 curve is what you asked for and is the right figure for "how
-good can this method get". It is, however, a favourable order statistic: it
+The best-of-30 curve is the right figure for "how good can this method
+get". It is, however, a favourable order statistic: it
 selects the luckiest of 30 runs for each algorithm, and a reviewer who notices
 that will ask what a typical run did. The median curve with an IQR band answers
 that from the same data at no extra cost, so both are stored. The
@@ -151,26 +175,55 @@ i = list(map(str, d["algorithms"])).index("GNNLXSSA")
 plt.plot(d["median"][i], label="GNN-LX-SSA (median of 30)")
 plt.fill_between(range(d["median"].shape[1]), d["q25"][i], d["q75"][i], alpha=.2)
 ```
- Files are updated in place as
-algorithms finish, so resume and `WFLOP_ALGOS` subsets work normally. The old reporting scripts still read it,
-but note the file is now `results/RawResults_ds<N>.csv`. The v34 reporting
-pipeline (`run.py`, `reporting.py`, `studies.py`, `consolidate.py`) was **not**
-part of this port — only the algorithms and the objective were.
+Files are updated in place as algorithms finish, so resume and
+`WFLOP_ALGOS` subsets work normally.
 
-## 4. The six algorithms added from v34
+**Output file names.** Every output carries a suffix built from `WFLOP_TAG`,
+`WFLOP_SMOKE` (`_smoke`) and `WFLOP_BUDGET` (`_B<n>`), e.g.
+`results/RawResults_ds1.csv` (fixed iterations), `results/RawResults_ds1_B3000.csv`
+(fixed budget), `results/RawResults_ds1_smoke.csv` (pipeline check). The
+regimes therefore never share a checkpoint, a results file or a curve file.
+`report.py` and `combine_results.py` select them with `--budget`, `--smoke` and
+`--tag`.
+
+**Resume is guarded.** Beside each checkpoint the runner stores the settings
+it was written with (`*.settings.json`: runs, population, iterations, budget,
+parameter overrides, dtypes). A later run with different settings stops with
+a list of the differences instead of silently counting the old groups as
+finished. Running a subset of cases or algorithms under the same settings is
+still fine — that is how a campaign is split across jobs.
+
+## 4. Algorithms beyond the classical eight
 
 | Added | Source | Notes |
 |---|---|---|
 | `ACO` | ported | Eroglu & Seckiner (2012) pheromone = per-turbine leave-one-out wake contribution; ants relocate turbines, greedy accept-if-improved. Batched across runs only — the greedy chain inside a run is sequential by construction. |
 | `PF` | ported | Eroglu & Seckiner (2013) particle filter: predict → elite-quantile weights → systematic resampling. Fully batched, semantics unchanged. |
-| `GNNLXSSA` | ported | Algorithm 2 of the GNN-LX-SSA paper: GNWM surrogate screening, direction-head guidance (Eq. 32), repair, replay buffer, periodic fine-tuning. |
-| `GNNLXSSA_UQ` | ported | Deep-ensemble trust gate: predict with 5 surrogates, evaluate exactly when the ensemble spread exceeds `sigma_threshold`; generation best always verified. |
-| `GNNQASSA` | **derived, new code** | Not present in your zip. Identical GNN machinery with QA-SSA's quadratic-interpolation vertex replacing the Laplace perturbation. |
-| `GNNQASSA_UQ` | **derived, new code** | Same, with the ensemble trust gate. |
+| `GNNLXSSA` | ported | Algorithm 2 of the GNN-LX-SSA paper: GNWM surrogate screening, direction-head guidance (Eq. 32), repair, unbounded replay buffer, periodic fine-tuning. |
+| `GNNLXSSA_UQ` | ported | Deep-ensemble trust gate: predict with 5 surrogates, evaluate exactly when the ensemble spread is at least `sigma_threshold`; the generation best (argmin of the mixed exact/surrogate score) is always verified; each run's ensemble is retrained after `retrain_interval` new gated samples. |
+| `GNNQASSA` | **derived** | No CPU original exists. Identical GNN machinery with QA-SSA's quadratic-interpolation vertex replacing the Laplace perturbation. |
+| `GNNQASSA_UQ` | **derived** | Same, with the ensemble trust gate. |
 
-> The uploaded package's own registry ends at `GNNLXSSA_UQ` — there is no
-> GNN-QA-SSA in it. The two `QASSA` GNN variants above are my construction
-> by analogy; check they match your intent before publishing results from them.
+> GNN-QA-SSA and GNN-QA-SSA-UQ have no CPU original; they are constructed by
+> analogy with the LX variants (only the candidate operator differs, which
+> `validate_gpu.py` checks). State this in the methods section.
+
+**Fidelity to the CPU original (GNN family).** The batched code follows the
+CPU implementation in `algorithms.py` on every design point:
+
+- the replay buffer is unbounded, and fine-tuning draws its 96 samples from
+  each run's own buffered (labelled, feasible) samples;
+- finite-difference direction labels go to the first `n_fd` *feasible*
+  pre-training samples, and a run is charged 4N evaluations only for labels
+  it actually receives;
+- the two exploration probes are distinct, and a probe that coincides with a
+  top-mu candidate is not charged a second time;
+- the UQ gate admits `std >= sigma_threshold`, the trust anchor is the argmin
+  of the mixed exact/surrogate score (evaluated only if not already exact),
+  and each run retrains when its own counter reaches `retrain_interval`.
+
+Because of the last three points the GNN family's `Evaluations` can differ
+slightly from run to run; it is always recorded per run.
 
 **What the GNN port had to change.** The CPU surrogate builds a sparse edge
 list per layout, and edge counts differ per layout, which cannot be batched.
@@ -185,17 +238,20 @@ weights.
 
 **The UQ gate is a true gate.** The ensemble predicts first, the gate mask is
 built from the predictive spread, and the exact objective is called **only on
-the gated candidates**. Because the number that passes the gate differs per
-run and a batch must be rectangular, the gather is padded to the widest run
-with a duplicate of that run's first gated candidate; the duplicate costs one
-column and carries the same value, so writing it twice is harmless. **No
-ungated candidate is ever evaluated exactly.**
+the gated candidates** (plus the trust anchor). Because the number that passes
+the gate differs per run and a batch must be rectangular, the gather is padded
+to the widest run. Padding columns are computed but their values are
+**discarded** — never scored, never buffered, never allowed to reach the
+incumbent — so an ungated candidate can never influence a run.
 
 That is why there are two counters. `Evaluations` is what the gate admitted —
 the algorithmic budget, and the number for the paper. `ObjectiveCalls` is what
 was actually computed, including the padding — the compute cost of running 30
 seeds in lockstep. Measured at full campaign settings (30 individuals, 100
-iterations, `n_pretrain = 40`, 4 seeds in the batch, data set I, R = 500 m):
+iterations, `n_pretrain = 40`, 4 seeds in the batch, data set I, R = 500 m)
+**with an earlier version of the gate** (strict `>` threshold, anchor on the
+surrogate mean); the aligned gate admits slightly differently, so re-measure
+before quoting these numbers:
 
 | N | `Evaluations` (range over runs) | `ObjectiveCalls` | evaluate-all would cost | exact calls saved | gate admits |
 |---|---|---|---|---|---|
@@ -227,7 +283,7 @@ at run time. Specifically, for an A100:
 | API surface | 49 distinct `xp.*` calls, all present in CuPy. No NumPy call ever touches a device array — the only `np.*` uses are host scalars and constants. |
 | Scalars | `math.pi` / `math.inf` / `math.nan` are used instead of `xp.pi` / `xp.inf` / `xp.nan`, so nothing depends on NumPy alias re-exports surviving in the CuPy namespace. |
 | Indexing | Integer gathers and `take_along_axis` only; no multi-axis boolean indexing, which CuPy supports unevenly. |
-| RNG | `random`, `integers`, `normal`, `uniform` — the common subset of `cupy.random.Generator`. Permutations are done as `argsort` of random keys, so nothing relies on `Generator.permutation`. |
+| RNG | `random`, `integers`, `standard_normal`, `uniform` — methods verified against `cupy.random.Generator` (CuPy 14.2), which has **no** `normal`, `permutation` or `shuffle`. Gaussian draws are `standard_normal() * sd`; permutations are `argsort` of random keys. |
 | Precision | Objective in float64 (the 1e10 penalty needs the range); the A100 does FP64 at 9.7 TFLOP/s, so this costs little. Surrogate in float32. |
 | Device syncs | The two `bool(xp.any(...))` early-exits inside the repair loops are **skipped on GPU** — they save work on a CPU but each one stalls the pipeline, and the repair loop runs N(N-1)/2 times per call. |
 | Workers | Default is one process per visible GPU. Extra processes on one GPU only contend for it. With several GPUs each worker binds to its own device. |
@@ -318,9 +374,9 @@ The cost model, in exact objective evaluations per run:
 | Algorithm | Mandatory, before iterating | Per iteration |
 |---|---|---|
 | GA, PSO, DE, GWO, BBO, SSA, PF | `pop` | `pop` |
-| LX-SSA, QA-SSA | `pop` | `2·pop` |
+| LX-SSA, QA-SSA | `pop` | `pop + 2·ceil(pop/2)` (= `2·pop` for even pop) |
 | ACO | 1 | `N + pop` |
-| GNN-LX/QA-SSA | `pop + n_pretrain + 4N·n_fd` = **70 + 64N** | `n_exact + 2` |
+| GNN-LX/QA-SSA | `pop + n_pretrain + 4N·n_fd` = **70 + 64N** (upper bound) | `n_exact + 2` (upper bound) |
 | GNN-*-UQ | same | data-dependent |
 
 **The GNN mandatory cost grows with N** — 198 at N=2, **1,222 at N=18** —
@@ -345,15 +401,25 @@ enough to the fixed-iteration regime that the two campaigns are comparable.
 Confirm before freezing with `python test_budget.py --budget 3000`, and state
 the chosen budget and this rationale in the papers.
 
+The GNN cost-model parameters (`n_pretrain`, `fd_fraction`, `fd_max`, `mu`)
+are read from `WFLOP_ALGO_KWARGS` when overridden, so an ablation that changes
+them keeps the budget exact.
+
 The two UQ variants cannot have an iteration count derived in advance — their
 spend is data-dependent — so they get the budget as a hard cap and truncate
 their gate admissions to whatever budget is left, spending it on the
-best-predicted candidates. A run with nothing left admits nothing and cannot
-improve further (the incumbent only ever takes exact values), so it holds while
-the others finish. That is precisely what "best found within budget B" means.
-Their iteration ceiling is derived too — `budget − mandatory`, the point past
-which the budget cannot stretch even at one admission per iteration — so the
-budget always binds, never an arbitrary iteration limit.
+best-predicted candidates. **Each run spends its own budget in full**: a run
+that has reached the cap admits nothing more and holds its incumbent (which
+only ever takes exact values) while the others finish, and the batch stops
+once every run has reached the cap. That is precisely what "best found within
+budget B" means. Their iteration ceiling is `budget − mandatory`, the point
+past which the budget cannot stretch even at one evaluation per iteration (the
+trust anchor guarantees at least one), so the budget always binds.
+
+Under a budget the annealing schedules (the leader step `r1` and the guidance
+weight `tau`) follow the **fraction of the budget spent** rather than
+`t / iterations`, so they complete when the run's budget does — the same
+start-to-finish schedule the CPU code runs over its fixed iteration count.
 
 Run the campaign both ways and report both: fixed iterations answers "better
 per iteration" (the convergence claim), fixed budget answers "better per
@@ -429,11 +495,12 @@ paper analyses derive from that one sealed file; none of them edits it.
 **Check readiness before you spend the queue time:**
 
 ```bash
-python preflight.py --results     # 26 checks, one per pre-results requirement
+python preflight.py --results     # 28 checks, one per pre-results requirement
 ```
 
 It executes each item rather than asserting it, and reports the real-GPU
-validation as OUTSTANDING rather than passed, since only the A100 can close it.
+validation as OUTSTANDING rather than passed, since only a GPU run can close
+it. (On a CPU-only campaign that item simply does not apply.)
 
 ## 6. Running it
 
@@ -441,14 +508,22 @@ validation as OUTSTANDING rather than passed, since only the A100 can close it.
 python validate_gpu.py                      # always do this first
 WFLOP_SMOKE=1 python run_experiments_gpu.py # 2-minute end-to-end proof
 python run_experiments_gpu.py               # the real campaign
+WFLOP_BUDGET=3000 python run_experiments_gpu.py   # the fixed-budget campaign
 ```
+
+`validate_gpu.py` exits with status 1 if any check fails, so
+`python validate_gpu.py || exit 1` stops a job before the campaign starts. The
+smoke run writes `*_smoke` files and the budget run `*_B3000` files; neither
+touches the fixed-iteration results.
 
 **Or run the whole thing in the background, no SLURM.** `run_all.py` chains
 validation, both campaigns, the eight paper reports and the combined workbook,
 detached, so the shell comes straight back and the run survives logout:
 
 ```bash
-python run_all.py                 # start; returns immediately
+python run_all.py                 # start; returns immediately (GPU if available, else CPU)
+python run_all.py --backend cpu   # force the CPU
+python run_all.py --budget 3000   # the fixed-budget campaign, reports included
 python run_all.py status          # progress bar per data set, workbooks so far
 python run_all.py log             # follow the output (Ctrl-C stops watching only)
 python run_all.py stop            # halt; restarting resumes from the checkpoint
@@ -456,9 +531,10 @@ python run_all.py stop            # halt; restarting resumes from the checkpoint
 
 It refuses to start a second run while one is alive, because two runs sharing a
 checkpoint would corrupt it. Run it on a **compute node** (e.g. inside `salloc
---partition=gpu --gres=gpu:a100:1`), not on a login node — the full campaign is
-hours of compute and most sites kill that on a login node. For a batch queue,
-`submit_gpu.slurm` is still the right tool.
+--partition=gpu --gres=gpu:a100:1`, or a CPU allocation), not on a login node —
+the full campaign is hours of compute and most sites kill that on a login
+node. For a batch queue, `submit_gpu.slurm` / `submit_cpu.slurm` are still the
+right tools. Its exit status is non-zero if any step failed.
 
 Environment variables:
 
@@ -472,10 +548,15 @@ Environment variables:
 | `WFLOP_TIMING` | `0` | `1` also times one run on its own per case and algorithm, giving a `RuntimeSingleRun` column that IS comparable to a sequential implementation. Costs about 1/30 of the campaign. |
 | `WFLOP_SAVE_ARTIFACTS` | `1` | `0` skips writing the convergence-curve files. |
 | `WFLOP_DATASET` | `1` | Wind data set: `1` or `2`. Results go to `results/RawResults_ds<N>.csv`. |
+| `WFLOP_BUDGET` | unset | Fixed-evaluation regime: a hard cap on exact evaluations per run. Outputs get a `_B<n>` suffix. |
+| `WFLOP_TAG` | unset | Label for an ablation or variant; outputs get a `_<tag>` suffix. |
+| `WFLOP_ALGO_KWARGS` | `{}` | JSON of per-algorithm parameter overrides (ablations). |
+| `WFLOP_CASES`, `WFLOP_RUNS` | full grid, 30 | Restrict the case grid (`500:5,1000:18`) or the seed count, for pilots. |
 | `WFLOP_ALGOS` | all 14 | Comma-separated subset, e.g. `GA,SSA,GNNLXSSA`. The GNN family is far more expensive than the rest — splitting the campaign is usually the right move. |
 | `WFLOP_SURROGATE_DTYPE` | `float32` | `float64` for the strict gradient check. |
 
-Resume works exactly as before, at (radius, turbines, algorithm) granularity.
+Resume works at (radius, turbines, algorithm) granularity, and only under the
+settings the checkpoint was written with (see §3).
 
 ## 7. What is identical, and what changed
 
@@ -490,13 +571,13 @@ reproduce the original logic.
 worst relative error **1.1 × 10⁻¹⁴**, which is floating-point summation order,
 not physics.
 
-**Wind Data Set III (Horns Rev 1) has been removed** at your request. The
-batched Horns Rev module is gone, `dataset=3` raises a clear error in both the
+**Wind Data Set III (Horns Rev 1) is not included.** There is no batched
+Horns Rev module, `dataset=3` raises a clear error in both the
 GPU objective and the bundled CPU reference, and `WFLOP_DATASET` accepts only
 1 or 2.
 
-**Three deliberate changes** — each one is a decision you should be able to
-defend in a paper, so they are listed explicitly:
+**Deliberate changes** — each one is a decision to state in a paper, so they
+are listed explicitly:
 
 1. **PSO and DE are now synchronous (generational).** The originals update
    `gbest` (PSO) and the population (DE) *during* the sweep, so individual *i*
@@ -516,11 +597,11 @@ defend in a paper, so they are listed explicitly:
    values are ~10³⁰ inside the penalty region. The guard now scales with the
    fitness magnitude.
 
-4. **The uncertainty-gated variants report a per-run evaluation count.** How
-   many candidates the gate sends for exact evaluation differs from run to run,
-   so `Evaluations` is now recorded per run rather than collapsed to one number
-   for the whole group. Every other algorithm spends the same budget in every
-   run, and still reports a single value.
+4. **The GNN family reports a per-run evaluation count.** How many
+   candidates the gate sends for exact evaluation, how many finite-difference
+   labels a run receives and whether an exploration probe duplicates a screened
+   candidate all differ from run to run, so `Evaluations` is recorded per run.
+   The classical algorithms spend the same amount in every run.
 
 **Random numbers differ.** The batched code draws in a different order, and
 CuPy's bit generator differs from NumPy's. A GPU run and a CPU run with the
@@ -559,9 +640,9 @@ ones. On an A100 (9.7 TFLOP/s FP64) there is no reason to use float32. On a
 consumer card with crippled FP64, lower `PENALTY` to ~10⁴ first and re-validate
 that feasible solutions are still found — do not simply flip the dtype.
 
-## 10. Expected performance, and what I could not test
+## 10. Expected performance, and what is not yet verified
 
-**Measured here** (CPU, single core, batched code):
+**Measured on a CPU** (single core, batched code):
 
 | N | per-layout, batch 900 | original per-layout | speed-up |
 |---|---|---|---|
@@ -572,16 +653,23 @@ One full group (30 seeds × 30 individuals × 100 iterations, N = 9, GA) takes
 **17.5 s** batched, against ~48 min for the same work in the original code on
 the same machine.
 
-**Not measured:** this environment has no GPU, so the CuPy path has never
-executed a CUDA kernel on real hardware. It has, however, been executed
-end-to-end through a strict CuPy stand-in (`tests/fake_cupy`) that rejects any
-attribute the real library does not expose, so the GPU branch is known to use
-only supported API. The NumPy path — the same source — is fully validated.
+**Not yet verified on real GPU hardware.** The CuPy path has been executed
+end-to-end through a strict CuPy stand-in (`tests/fake_cupy`) whose allowed
+API was checked against the real CuPy 14.2 package, so the GPU branch uses
+only supported calls. The stand-in cannot test CUDA numerics, device memory
+or speed; run `validate_gpu.py` on the GPU node first. The NumPy path — the
+same source — is fully validated.
+
+To exercise the GPU code path on a machine without a GPU:
+
+```bash
+PYTHONPATH=tests/fake_cupy WFLOP_BACKEND=gpu python validate_gpu.py
+```
 
 The GNN family **has** now been run at full campaign settings (30 individuals,
 100 iterations, `n_pretrain = 40`, hidden 64, three message-passing layers) at
-N = 2, 5 and 9, which is where the budget table in §6 comes from. Treat the GPU numbers as unverified
-until you run `validate_gpu.py` on the node. What you should see there is
+N = 2, 5 and 9 on a CPU. Treat any GPU performance expectation as unverified
+until `validate_gpu.py` has run on the node. What you should see there is
 throughput climbing steeply with batch size and then flattening; if it flattens
 early, raise the batch by running more seeds in lockstep.
 
@@ -593,23 +681,25 @@ the fully batched algorithms.
 **Where the GPU should help most:** the GNN family. Its cost is dominated by
 surrogate forward and backward passes on `(runs × candidates × N × N × 133)`
 tensors — dense batched matmuls, exactly what a GPU is for. These are also the
-algorithms that are painfully slow on a CPU: in this environment a single tiny
-GNN-UQ group (4 runs, 8 individuals, 5 iterations, hidden 16) takes seconds,
-and the full campaign settings (hidden 64, three layers, 5-member ensemble)
-are impractical on one core. If you only port one thing to the GPU, port these.
+algorithms that are slowest on a CPU: a single tiny GNN-UQ group (4 runs,
+8 individuals, 5 iterations, hidden 16) takes seconds, and the full campaign
+settings (hidden 64, three layers, 5-member ensemble) are slow on one core —
+spread them over many cores (`submit_cpu.slurm`) or run them on a GPU.
 
 **A knob that matters:** `n_models`, `hidden` and `mp_layers` drive surrogate
 memory as `runs × models × candidates × N² × (2·hidden + 5)`. At the campaign
 defaults with N = 18 and 30 seeds that is a few hundred MB in float32 — fine on
 an A100, tight on a 12 GB card. Lower `NUM_RUNS` before lowering `hidden`.
 
-## 11. Is a GPU even the right answer?
+## 11. CPU or GPU?
 
-Honestly: possibly not. The objective is memory-bound elementwise arithmetic on
-modest tensors, and the batched CPU version already brings the campaign to a
-couple of hours on **one core** — minutes across the 64 cores you already
-request. A GPU will beat that, but the decisive gain came from batching, not
-from CUDA.
+Either works, from the same code. For the ten classical algorithms the
+objective is memory-bound elementwise arithmetic on modest tensors, and the
+batched CPU version already brings that part of the campaign to a couple of
+hours on **one core** — minutes across a 64-core node. The decisive gain came
+from batching, not from CUDA. The GNN family is where a GPU pays off; on a CPU
+it is best run across many cores, possibly as its own job
+(`WFLOP_ALGOS=GNNLXSSA,GNNQASSA,GNNLXSSA_UQ,GNNQASSA_UQ`).
 
 The strongest argument for the GPU path is what it makes affordable *next*:
 equal-budget re-runs, sensitivity analysis over the penalty coefficient, larger

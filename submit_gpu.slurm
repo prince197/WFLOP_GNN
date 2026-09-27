@@ -82,7 +82,14 @@ WFLOP_DATASETS="${WFLOP_DATASETS:-1 2}"
 # and give the second one a longer wall-clock limit.
 # export WFLOP_ALGOS=...
 
-mkdir -p logs results curves layouts
+mkdir -p logs results curves
+
+# The report and combine steps must read the same files the campaign writes:
+# a fixed-budget run (export WFLOP_BUDGET=3000) or a tagged run
+# (export WFLOP_TAG=...) writes results/RawResults_ds<D>_<tag>_B<n>.csv.
+SEL=""
+[ -n "$WFLOP_TAG" ] && SEL="$SEL --tag $WFLOP_TAG"
+[ -n "$WFLOP_BUDGET" ] && SEL="$SEL --budget $WFLOP_BUDGET"
 
 echo "--- validation -------------------------------------------"
 python validate_gpu.py || { echo "VALIDATION FAILED - stopping"; exit 1; }
@@ -120,7 +127,7 @@ for DS in $WFLOP_DATASETS; do
     # each other. The statistics are computed WITHIN a data set and are never
     # pooled across the two: they are different wind regimes, not replications.
     for P in 1 2 3 4; do
-        python report.py --dataset $DS --paper $P
+        python report.py --dataset $DS --paper $P $SEL
     done
 done
 
@@ -128,7 +135,7 @@ echo "--- combined raw results ---------------------------------"
 # Both data sets side by side in one workbook, one sheet each
 # (RawResults_DS1, RawResults_DS2). Statistics stay in the per-paper
 # workbooks; this is a transport step, written after the seals are verified.
-python combine_results.py --datasets $WFLOP_DATASETS
+python combine_results.py --datasets $WFLOP_DATASETS $SEL
 
 # No figure step: turbine coordinates live in the Coordinates column of the
 # results CSV and the convergence curves in curves/Conv_ds*_R*_T*.npz, so the

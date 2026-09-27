@@ -16,7 +16,6 @@ rather than passed, and never silently skipped.
 import argparse
 import glob
 import hashlib
-import importlib
 import inspect
 import json
 import os
@@ -160,7 +159,7 @@ def main():
 
     here = os.path.dirname(os.path.abspath(__file__))
     stale = []
-    for fn in ("run_experiments_gpu.py", "README_GPU.md"):
+    for fn in ("run_experiments_gpu.py", "README.md"):
         txt = open(os.path.join(here, fn), encoding="utf-8").read()
         if "4 decimals" in txt:
             stale.append(fn)

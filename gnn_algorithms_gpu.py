@@ -11,14 +11,13 @@ Four optimizers:
     GNNQASSA_UQ   + deep-ensemble trust gate (DERIVED - see note below)
 
 >>> IMPORTANT - PROVENANCE ------------------------------------------
-The uploaded package contains GNNLXSSA and GNNLXSSA_UQ only. There is
-no GNN-QA-SSA in it (its ALGORITHM_NAMES list ends at "GNNLXSSA_UQ").
-GNNQASSA and GNNQASSA_UQ below are therefore NEW CODE, written here by
-analogy: the GNN machinery - surrogate, screening, guidance, trust gate,
+The CPU original (algorithms.py) contains GNNLXSSA and GNNLXSSA_UQ
+only; there is no CPU GNN-QA-SSA. GNNQASSA and GNNQASSA_UQ below are
+therefore DERIVED code, written by analogy: the GNN machinery - surrogate, screening, guidance, trust gate,
 repair, replay buffer, fine-tuning - is identical to the LX variants,
 and only the follower candidate operator is swapped from the Laplace
-perturbation to QA-SSA's quadratic-interpolation vertex. Check that
-this matches what you intend before using it in a paper.
+perturbation to QA-SSA's quadratic-interpolation vertex. State this in
+the methods section of any paper that uses them.
 ---------------------------------------------------------------------
 
 Algorithm 2 of the paper is preserved: single leader move (Eq. 6),
@@ -35,9 +34,9 @@ BATCHING NOTES
   is built, and the exact objective is called ONLY on the gated
   candidates. Because the number of gated candidates differs per run
   and a batch must be rectangular, the gather is padded to the widest
-  run with a duplicate of that run's first gated candidate - a
-  duplicate costs one extra column, and writing its (identical) value
-  twice is harmless. Ungated candidates are never evaluated exactly.
+  run. Padding columns are computed but their values are discarded -
+  never scored, buffered or allowed to reach the incumbent - so no
+  ungated candidate ever influences a run.
 
   Two counts are therefore reported, and they mean different things:
       Evaluations   - gated candidates, i.e. exact values the optimizer
@@ -45,6 +44,9 @@ BATCHING NOTES
       ObjectiveCalls- exact objective computations performed, including
                       the padding columns. This is the compute cost.
   For every non-UQ optimizer the two are equal.
+* Evaluations are counted PER RUN: the gate, the trust anchor, the
+  finite-difference labels and the de-duplicated exploration probes
+  can all differ from run to run.
 * Initial layouts use batched rejection sampling with a spacing-repair
   fallback (the CPU code adds a constructive ring fallback for large N).
 ============================================================
@@ -156,8 +158,9 @@ def feasible_layouts(rng, shape, n, r, tries=30, min_dist=None):
 def fd_directions(f, X, n, ne, h=5.0):
     """X : (R,S,2n) -> (R,S,n,2) unit descent directions of the true objective.
 
-    Costs 4n exact evaluations per sample, charged to the counter exactly
-    as the CPU code charges them.
+    Costs 4n exact evaluations per sample. The CALLER charges them, per run,
+    for the samples whose label it actually keeps - as the CPU code charges
+    4N only when it assigns a label.
     """
     R, S, dim = X.shape
     eye = xp.eye(dim, dtype=DTYPE) * h
@@ -165,7 +168,6 @@ def fd_directions(f, X, n, ne, h=5.0):
     minus = X[:, :, None, :] - eye[None, None]
     both = xp.concatenate([plus, minus], axis=2).reshape(R * S * 2 * dim, dim)
     vals = _eval_flat(f, both, ne, per_run=0).reshape(R, S, 2, dim)
-    ne[0] += 2 * dim * S            # 4n evals per sample, S samples
     g = (vals[:, :, 0] - vals[:, :, 1]) / (2 * h)
     g = -g.reshape(R, S, n, 2)
     nrm = xp.sqrt(xp.sum(g * g, axis=-1, keepdims=True))
@@ -200,10 +202,12 @@ class _GNNSalpBase(_Base):
         dataset = self.kw.get("dataset", 1)
         # Hard cap on exact evaluations, used by the fixed-budget regime. The
         # UQ variants cannot have their iteration count derived from a budget
-        # in advance (the gate is data-dependent), so they are run long and
-        # stopped as soon as the slowest-spending run reaches the cap.
+        # in advance (the gate is data-dependent), so each run spends until it
+        # reaches the cap and then holds its incumbent; the batch stops once
+        # EVERY run has reached it.
         max_evals = self.kw.get("max_evals", None)
-        buffer_cap = self.kw.get("buffer_cap", 256)
+        # The CPU replay buffer is unbounded; so is this one by default.
+        buffer_cap = self.kw.get("buffer_cap", None)
 
         n_models = self.kw.get("n_models", 5) if self.uq else 1
         sigma_thr = self.kw.get("sigma_threshold", 0.5)
@@ -218,19 +222,22 @@ class _GNNSalpBase(_Base):
         gnn = BatchedGNWM(n_runs, hidden=hidden, layers=layers,
                           seed=seed, n_models=n_models)
 
-        ne = [0]                       # exact evaluations shared by every run
-        gated = xp.zeros(n_runs, dtype=DTYPE)   # gate-admitted, per run
-        calls = xp.zeros(n_runs, dtype=DTYPE)   # exact objective calls performed
+        # Exact-evaluation accounting.
+        #   ne[0] : evaluations charged identically to every run
+        #   own   : evaluations charged per run (they differ run to run)
+        #   calls : objective computations performed per run beyond ne[0];
+        #           >= own, because a batch must be rectangular
+        # Evaluations = ne[0] + own ; ObjectiveCalls = ne[0] + calls.
+        ne = [0]
+        own = xp.zeros(n_runs, dtype=DTYPE)
+        calls = xp.zeros(n_runs, dtype=DTYPE)
         self.n_surrogate_evals = 0            # inference (screening/guidance)
         self.n_surrogate_train = 0            # training forward passes
         self.n_finetunes = 0
         # Calibration evidence for the UQ papers. Every gated candidate gives
         # a matched pair: what the ensemble predicted and how far off it was.
-        # Kept as (sigma, |error|, predicted, exact) rows in real wake-loss
-        # units, padding columns excluded. This is what turns "the gate is
-        # cheaper" into "the uncertainty is informative" - without it, a
-        # reviewer has no way to tell whether the ensemble spread tracks the
-        # surrogate's actual error or is decorative.
+        # Kept as (sigma, |error|, predicted, exact, feasible) rows in real
+        # wake-loss units, padding columns excluded.
         self.uq_calibration = []
         self.gate_admitted = []       # gate admissions per iteration, per run
 
@@ -250,10 +257,10 @@ class _GNNSalpBase(_Base):
                 pred, gout = gnn.guidance(Xn, Ea, mk)
             else:
                 pred, gout = gnn.predict(Xn, Ea, mk), None
+            # per-run count: P.shape[1] candidates in every run
             self.n_surrogate_evals += int(P.shape[1]) * n_models
             if n_models == 1:
-                return (pred, xp.zeros_like(pred),
-                        gout if gout is None else gout)
+                return pred, xp.zeros_like(pred), gout
             pred = pred.reshape(n_models, n_runs, -1)
             mean, std = xp.mean(pred, axis=0), xp.std(pred, axis=0)
             if gout is None:
@@ -261,6 +268,9 @@ class _GNNSalpBase(_Base):
             g = xp.mean(gout.reshape((n_models, n_runs) + gout.shape[1:]), axis=0)
             nrm = xp.sqrt(xp.sum(g * g, axis=-1, keepdims=True))
             return mean, std, g / xp.maximum(nrm, 1e-12)
+
+        def spent():
+            return ne[0] + own
 
         # ---------------- initial population ----------------
         P0 = feasible_layouts(rng, (n_runs, pop), n, r, min_dist=min_dist)
@@ -275,9 +285,10 @@ class _GNNSalpBase(_Base):
         H = best_x.copy()
         curves = [best_f.copy()]
         self.eval_axis = []
-        self._track(ne, n_runs, gated if self.uq else None)
+        self._track(ne, n_runs, own)
 
-        # buffers of raw positions + targets (graphs rebuilt on demand)
+        # buffers of raw positions + targets (graphs rebuilt on demand);
+        # NaN targets mark slots that carry no exact value
         buf_P = [P0]
         buf_y = [fit * norm]
         buf_g = [xp.full((n_runs, pop, n, 2), math.nan, dtype=SDTYPE)]
@@ -290,11 +301,22 @@ class _GNNSalpBase(_Base):
                           per_run=n_pretrain).reshape(n_runs, n_pretrain)
 
         gfd = xp.full((n_runs, n_pretrain, n, 2), math.nan, dtype=SDTYPE)
-        if n_fd > 0:
-            k = min(n_fd, n_pretrain)
-            g = fd_directions(f, preX[:, :k], n, ne)
-            ok = (pref[:, :k] < feas_cap)[..., None, None]
-            gfd[:, :k] = xp.where(ok, g.astype(SDTYPE), math.nan)
+        k = min(n_fd, n_pretrain)
+        if k > 0:
+            # As in the CPU code, the FD labels go to the first k FEASIBLE
+            # pre-training samples; a run with fewer feasible samples gets
+            # fewer labels and is charged only for those.
+            feas = pref < feas_cap
+            ar = xp.arange(n_pretrain)[None, :]
+            key = xp.where(feas, ar, ar + n_pretrain)
+            fidx = xp.argsort(key, axis=1)[:, :k]                    # (R,k)
+            fok = xp.take_along_axis(feas, fidx, axis=1)             # (R,k)
+            g = fd_directions(f, xp.take_along_axis(preX, fidx[..., None], axis=1),
+                              n, ne)
+            own = own + (4 * n) * xp.sum(fok, axis=1).astype(DTYPE)
+            calls = calls + 4 * n * k
+            g = xp.where(fok[..., None, None], g.astype(SDTYPE), math.nan)
+            gfd[xp.arange(n_runs)[:, None], fidx] = g
 
         buf_P.append(pre)
         buf_y.append(pref * norm)
@@ -308,9 +330,10 @@ class _GNNSalpBase(_Base):
         best_f = xp.where(imp, gv, best_f)
         H = best_x.copy()
 
-        def train(Psub, ysub, gsub, epochs, batch=16):
+        def train(Psub, ysub, gsub, epochs, batch=16, active=None):
             """Train only on labelled, penalty-free samples - the CPU code
-            achieves the same by never buffering the others."""
+            achieves the same by never buffering the others. `active` (R,)
+            restricts the update to the runs whose retraining is due."""
             valid = xp.isfinite(ysub) & (ysub < feas_cap * norm)
             if not bool(xp.any(valid)):
                 return
@@ -320,19 +343,31 @@ class _GNNSalpBase(_Base):
             gg = None if gsub is None else rep(gsub)
             gnn.train(Xn, Ea, mk, rep(ysub).astype(SDTYPE), gfd=gg,
                       epochs=epochs, batch=batch, lambda_g=lambda_g, rng=rng,
-                      valid=rep(valid))
+                      valid=rep(valid),
+                      active=None if active is None else rep(active))
 
         train(xp.concatenate(buf_P, axis=1),
               xp.concatenate(buf_y, axis=1),
               xp.concatenate(buf_g, axis=1), epochs=25)
 
         n_exact = max(1, int(np.ceil(mu * 2 * pop)))
-        since_retrain = 0
+        since_retrain = xp.zeros(n_runs, dtype=DTYPE)
+        start_spent = spent()                     # evaluations before iterating
 
         # ---------------- main loop ----------------
         for t in range(1, iters + 1):
-            r1 = 2.0 * float(np.exp(-((4.0 * t / iters) ** 2)))
-            tau = tau0 * (1.0 - t / iters)
+            # Annealing progress in [0, 1]. With a fixed iteration count it is
+            # t / iters, exactly as in the CPU code. Under a budget cap the run
+            # ends when its budget is spent, so progress is the fraction of the
+            # iterative budget already used - the schedule then completes when
+            # the run does, instead of being frozen at its start.
+            prog = xp.full((n_runs,), t / iters, dtype=DTYPE)
+            if max_evals is not None:
+                room = xp.maximum(max_evals - start_spent, 1.0)
+                prog = xp.maximum(prog, (spent() - start_spent + 1.0) / room)
+            prog = xp.minimum(prog, 1.0)
+            r1 = (2.0 * xp.exp(-((4.0 * prog) ** 2)))[:, None]       # (R,1)
+            tau = (tau0 * (1.0 - prog))[:, None, None]                # (R,1,1)
 
             # ---- leader (Eq. 6) + follower chain ----
             moved = popX.copy()
@@ -372,115 +407,138 @@ class _GNNSalpBase(_Base):
 
             mean, std, _ = surro(allP)
             score = mean.astype(DTYPE) / norm
+            is_exact = xp.zeros((n_runs, 2 * pop), dtype=bool)
+            new_P, new_y = [], []
 
             if not self.uq:
                 # ---- top-mu screening + 2 random probes ----
+                # As in the CPU code: two DISTINCT random candidates, united
+                # with the top-mu set. A probe that is already in the top-mu
+                # set is not a new evaluation and is not charged again.
                 idx = xp.argsort(mean, axis=1)[:, :n_exact]
-                extra = xp.asarray(rng.integers(0, 2 * pop, (n_runs, 2)))
+                extra = xp.argsort(xp.asarray(rng.random((n_runs, 2 * pop))),
+                                   axis=1)[:, :2]
+                dup = xp.any(extra[:, :, None] == idx[:, None, :], axis=2)
                 pick = xp.concatenate([idx, extra], axis=1)         # (R,k)
                 sel = xp.take_along_axis(allc, pick[..., None], axis=1)
                 k = pick.shape[1]
                 vals = _eval_flat(f, sel.reshape(n_runs * k, dim), ne,
-                                  per_run=k).reshape(n_runs, k)
+                                  per_run=0).reshape(n_runs, k)
+                own = own + (k - xp.sum(dup, axis=1)).astype(DTYPE)
                 calls = calls + k
                 score = _scatter(score, pick, vals)
-                newP = sel.reshape(n_runs, k, n, 2)
-                newy = vals * norm
-                # the incumbent may ONLY come from exact evaluations
-                exact_vals, exact_x = vals, sel
+                is_exact = _scatter(is_exact, pick, xp.ones_like(pick, dtype=bool))
+                fresh = xp.concatenate(
+                    [xp.ones_like(idx, dtype=bool), ~dup], axis=1)
+                new_P.append(sel.reshape(n_runs, k, n, 2))
+                new_y.append(xp.where(fresh, vals * norm, math.nan))
             else:
                 # ---- TRUE uncertainty gate: evaluate only what it admits ----
-                gate = std > sigma_thr
-                gate = _set_at(gate, xp.argmin(mean, axis=1), True)  # verify best
+                gate = std >= sigma_thr                  # CPU: std >= threshold
                 n_gated = xp.sum(gate, axis=1).astype(DTYPE)
 
                 # HARD BUDGET CAP. Under the fixed-budget regime a run may not
                 # be able to afford every candidate the gate would admit. The
                 # admissions are then truncated to whatever budget is left,
-                # spending it on the most promising candidates rather than
-                # overshooting the cap. A run with nothing left admits nothing
-                # and cannot improve further - `best_f` only ever takes values
-                # from exact evaluations - so it holds its incumbent while the
+                # spending it on the most promising candidates. A run with
+                # nothing left admits nothing and holds its incumbent while the
                 # others finish, which is exactly what "best found within
                 # budget B" means.
                 if max_evals is not None:
-                    spent = ne[0] + gated
                     n_gated = xp.minimum(n_gated,
-                                         xp.maximum(max_evals - spent, 0.0))
+                                         xp.maximum(max_evals - spent(), 0.0))
 
                 width = int(xp.max(n_gated))
-                if width == 0:                  # every run has exhausted B
-                    curves.append(best_f.copy())
-                    self._track(ne, n_runs, gated)
-                    break
+                if width > 0:
+                    # Gated candidates ordered by ASCENDING PREDICTED MEAN, so
+                    # a truncated run keeps the ones the surrogate rates best.
+                    # Columns beyond a run's own count (`keep` False) are
+                    # padding: they are computed so the batch is rectangular,
+                    # but their values are DISCARDED - never scored, never
+                    # buffered, never allowed to touch the incumbent.
+                    col = xp.arange(2 * pop)
+                    rank = xp.argsort(xp.argsort(mean, axis=1), axis=1)
+                    key = xp.where(gate, rank, 2 * pop + rank)
+                    order = xp.argsort(key, axis=1)[:, :width]
+                    keep = col[:width][None, :] < n_gated[:, None]
+                    idx = xp.where(keep, order, order[:, :1])
 
-                # Gated candidates ordered by ASCENDING PREDICTED MEAN, so a
-                # truncated run keeps the ones the surrogate rates best and the
-                # forced generation-best (the argmin of mean) always comes
-                # first. Padding columns repeat that first candidate, so the
-                # duplicate carries the same exact value and no ungated
-                # candidate is ever evaluated.
-                col = xp.arange(2 * pop)
-                rank = xp.argsort(xp.argsort(mean, axis=1), axis=1)
-                key = xp.where(gate, rank, 2 * pop + rank)
-                order = xp.argsort(key, axis=1)[:, :width]
-                keep = col[:width][None, :] < n_gated[:, None]
-                idx = xp.where(keep, order, order[:, :1])
+                    sel = xp.take_along_axis(allc, idx[..., None], axis=1)
+                    vals_k = _eval_flat(f, sel.reshape(n_runs * width, dim), ne,
+                                        per_run=0).reshape(n_runs, width)
+                    own = own + n_gated
+                    calls = calls + width
+                    since_retrain = since_retrain + n_gated
 
-                sel = xp.take_along_axis(allc, idx[..., None], axis=1)
-                vals_k = _eval_flat(f, sel.reshape(n_runs * width, dim), ne,
-                                    per_run=0).reshape(n_runs, width)
+                    old = xp.take_along_axis(score, idx, axis=1)
+                    score = _scatter(score, idx, xp.where(keep, vals_k, old))
+                    was = xp.take_along_axis(is_exact, idx, axis=1)
+                    is_exact = _scatter(is_exact, idx, keep | was)
 
-                gated = gated + n_gated              # budget: what the gate used
-                calls = calls + width                # compute: what was evaluated
-
-                score = _scatter(score, idx, vals_k)
-
-                # Matched prediction/outcome pairs, real units, real entries
-                # only (`keep` drops the padding duplicates so they cannot
-                # weight the calibration twice).
-                mu_k = xp.take_along_axis(mean, idx, axis=1) / norm
-                sg_k = xp.take_along_axis(std, idx, axis=1) / norm
-                m = keep.reshape(-1)
-                # The 5th column flags whether the exact value is a FEASIBLE
-                # layout. Infeasible ones carry the 1e10 constraint penalty, so
-                # their objective is ~1e23 and the surrogate - which is trained
-                # only on feasible layouts and predicts a percentage of ideal
-                # power - cannot possibly track them. Including those pairs
-                # would swamp every calibration statistic with numbers that say
-                # nothing about the surrogate. They are kept rather than
-                # dropped so the analysis can report how many there were.
-                self.uq_calibration.append(xp.stack([
-                    sg_k.reshape(-1)[m],
-                    xp.abs(mu_k - vals_k).reshape(-1)[m],
-                    mu_k.reshape(-1)[m],
-                    vals_k.reshape(-1)[m],
-                    (vals_k < feas_cap).astype(DTYPE).reshape(-1)[m]],
-                    axis=1))
+                    mu_k = xp.take_along_axis(mean, idx, axis=1) / norm
+                    sg_k = xp.take_along_axis(std, idx, axis=1) / norm
+                    m = keep.reshape(-1)
+                    # The 5th column flags whether the exact value is a
+                    # FEASIBLE layout. Infeasible ones carry the 1e10 penalty,
+                    # which no surrogate trained on feasible layouts can track;
+                    # they are kept so the analysis can report how many there
+                    # were, and excluded from the statistics.
+                    self.uq_calibration.append(xp.stack([
+                        sg_k.reshape(-1)[m],
+                        xp.abs(mu_k - vals_k).reshape(-1)[m],
+                        mu_k.reshape(-1)[m],
+                        vals_k.reshape(-1)[m],
+                        (vals_k < feas_cap).astype(DTYPE).reshape(-1)[m]],
+                        axis=1))
+                    new_P.append(sel.reshape(n_runs, width, n, 2))
+                    new_y.append(xp.where(keep, vals_k * norm, math.nan))
                 self.gate_admitted.append(n_gated / float(2 * pop))
-                newP = sel.reshape(n_runs, width, n, 2)
-                newy = vals_k * norm
-                exact_vals, exact_x = vals_k, sel
+
+                # ---- trust anchor: verify the generation best exactly ----
+                # As in the CPU code, the anchor is the argmin of the MIXED
+                # score (exact where gated, surrogate mean elsewhere). If it is
+                # already exact it is not evaluated or charged again.
+                gb = xp.argmin(score, axis=1)                          # (R,)
+                need = ~xp.take_along_axis(is_exact, gb[:, None], axis=1)[:, 0]
+                if max_evals is not None:
+                    need = need & ((max_evals - spent()) >= 1)
+                if bool(xp.any(need)):
+                    xa = xp.take_along_axis(allc, gb[:, None, None], axis=1)
+                    va = _eval_flat(f, xa.reshape(n_runs, dim), ne,
+                                    per_run=0).reshape(n_runs, 1)
+                    own = own + need.astype(DTYPE)
+                    calls = calls + 1
+                    cur = xp.take_along_axis(score, gb[:, None], axis=1)
+                    score = _scatter(score, gb[:, None],
+                                     xp.where(need[:, None], va, cur))
+                    was = xp.take_along_axis(is_exact, gb[:, None], axis=1)
+                    is_exact = _scatter(is_exact, gb[:, None],
+                                        need[:, None] | was)
+                    new_P.append(xa.reshape(n_runs, 1, n, 2))
+                    new_y.append(xp.where(need[:, None], va * norm, math.nan))
 
             # ---- incumbent: exact values only, so best_f and the curve
             #      are always ground truth (as in the CPU implementation) ----
-            gi = xp.argmin(exact_vals, axis=1)
-            gv = xp.min(exact_vals, axis=1)
+            exact_score = xp.where(is_exact, score, math.inf)
+            gi = xp.argmin(exact_score, axis=1)
+            gv = xp.min(exact_score, axis=1)
             imp = gv < best_f
             best_x = xp.where(imp[:, None],
-                              xp.take_along_axis(exact_x, gi[:, None, None],
+                              xp.take_along_axis(allc, gi[:, None, None],
                                                  axis=1)[:, 0, :], best_x)
             best_f = xp.where(imp, gv, best_f)
             H = best_x.copy()
 
-            # ---- replay buffer ----
-            buf_P.append(newP)
-            buf_y.append(newy)
-            buf_g.append(xp.full(newP.shape[:2] + (n, 2), math.nan, dtype=SDTYPE))
-            total = sum(b.shape[1] for b in buf_P)
-            while total > buffer_cap and len(buf_P) > 1:
-                total -= buf_P[0].shape[1]
-                buf_P.pop(0); buf_y.pop(0); buf_g.pop(0)
+            # ---- replay buffer (unbounded, as in the CPU code) ----
+            for Pn, yn in zip(new_P, new_y):
+                buf_P.append(Pn)
+                buf_y.append(yn)
+                buf_g.append(xp.full(Pn.shape[:2] + (n, 2), math.nan, dtype=SDTYPE))
+            if buffer_cap is not None:
+                total = sum(b.shape[1] for b in buf_P)
+                while total > buffer_cap and len(buf_P) > 1:
+                    total -= buf_P[0].shape[1]
+                    buf_P.pop(0); buf_y.pop(0); buf_g.pop(0)
 
             # ---- greedy selection per salp ----
             a = score[:, :pop]
@@ -491,54 +549,58 @@ class _GNNSalpBase(_Base):
 
             # ---- periodic fine-tuning ----
             # LX/QA screening variants: every `finetune_every` iterations.
-            # UQ variants: after `retrain_interval` new exact samples, which is
-            # how the CPU implementation triggers it.
+            # UQ variants: per run, once `retrain_interval` new gated exact
+            # samples have accumulated - how the CPU implementation triggers
+            # it. Only the runs that are due are updated.
             if self.uq:
-                since_retrain += float(xp.mean(n_gated))
                 due = since_retrain >= retrain_interval
+                any_due = bool(xp.any(due))
             else:
-                due = (t % finetune_every == 0)
-            if due:
+                due, any_due = None, (t % finetune_every == 0)
+            if any_due:
                 Pall = xp.concatenate(buf_P, axis=1)
                 yall = xp.concatenate(buf_y, axis=1)
                 gall = xp.concatenate(buf_g, axis=1)
                 S = Pall.shape[1]
-                # argsort of random keys instead of rng.permutation:
-                # available on every backend, and stays on the device
-                sub = xp.argsort(xp.asarray(rng.random(S)))[:min(S, 96)]
-                train(Pall[:, sub], yall[:, sub], gall[:, sub],
-                      epochs=(retrain_epochs if self.uq else 2))
+                # 96 samples per run drawn from that run's BUFFERED (labelled,
+                # feasible) samples, as the CPU code draws from its buffer.
+                # argsort of random keys instead of rng.permutation: available
+                # on every backend, and stays on the device.
+                ok = xp.isfinite(yall) & (yall < feas_cap * norm)
+                keys = xp.asarray(rng.random((n_runs, S)), dtype=DTYPE) + \
+                    xp.where(ok, 0.0, 2.0)
+                sub = xp.argsort(keys, axis=1)[:, :min(S, 96)]
+                train(xp.take_along_axis(Pall, sub[:, :, None, None], axis=1),
+                      xp.take_along_axis(yall, sub, axis=1),
+                      xp.take_along_axis(gall, sub[:, :, None, None], axis=1),
+                      epochs=(retrain_epochs if self.uq else 2), active=due)
                 self.n_finetunes += 1
-                since_retrain = 0
+                if self.uq:
+                    since_retrain = xp.where(due, 0.0, since_retrain)
 
             curves.append(best_f.copy())
-            self._track(ne, n_runs, gated if self.uq else None)
+            self._track(ne, n_runs, own)
 
-            if max_evals is not None:
-                # Non-UQ GNN under a cap (not used by the runner, which derives
-                # an exact iteration count for it) and a belt-and-braces guard
-                # for the UQ path, whose truncation above already holds it at
-                # the cap.
-                spent = (ne[0] + gated) if self.uq else ne[0]
-                if float(xp.max(xp.asarray(spent))) >= max_evals:
-                    break
+            if max_evals is not None and float(xp.min(spent())) >= max_evals:
+                break                     # every run has spent its budget
 
         self.n_surrogate_train = int(getattr(gnn, "n_train_forwards", 0))
         if self.uq and self.uq_calibration:
             self.uq_calibration = asnumpy(
                 xp.concatenate(self.uq_calibration, axis=0))
+        else:
+            self.uq_calibration = np.zeros((0, 5))
+        if self.uq and self.gate_admitted:
             self.gate_rate = asnumpy(
                 xp.mean(xp.stack(self.gate_admitted, axis=0), axis=0))
         else:
-            self.uq_calibration = np.zeros((0, 5))
             self.gate_rate = np.zeros(n_runs)
 
         # `Evaluations`: exact values the optimizer used (the budget).
         # `n_objective_calls`: exact objective computations performed.
-        # They differ only for the UQ variants, and only by the padding.
-        total = (ne[0] + gated) if self.uq else ne[0]
+        total = spent()
         self.n_exact_evals = total
-        self.n_objective_calls = (ne[0] + calls) if self.uq else total
+        self.n_objective_calls = ne[0] + calls
         return best_x, best_f, xp.stack(curves, axis=1), total
 
     # ---- QA-SSA vertex, used by the derived GNN-QA variants ----
@@ -586,7 +648,7 @@ class GNNLXSSA(_GNNSalpBase):
 
 
 class GNNQASSA(_GNNSalpBase):
-    """DERIVED (not in the uploaded package) - see module header."""
+    """DERIVED (no CPU original) - see module header."""
     name = "GNNQASSA"
     operator = "quadratic"
     uq = False
@@ -599,7 +661,7 @@ class GNNLXSSA_UQ(_GNNSalpBase):
 
 
 class GNNQASSA_UQ(_GNNSalpBase):
-    """DERIVED (not in the uploaded package) - see module header."""
+    """DERIVED (no CPU original) - see module header."""
     name = "GNNQASSA_UQ"
     operator = "quadratic"
     uq = True

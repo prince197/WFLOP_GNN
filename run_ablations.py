@@ -29,6 +29,11 @@ Each ablation is an ordinary campaign with WFLOP_TAG set, so its outputs land
 beside the main campaign's rather than on top of them, and each gets its own
 manifest. Nothing here touches the frozen raw results.
 
+Tags carry the family (QA or LX), so the two families never share a file.
+A pilot (--runs or --cases) is tagged "_pilot" and a fixed-budget run gets a
+"_B<budget>" suffix, so neither can be resumed into - or mistaken for - the
+full fixed-iteration ablation.
+
 USAGE
 
     python run_ablations.py                    # all five, default settings
@@ -101,9 +106,12 @@ def main():
              ", fixed iterations"))
     print("=" * 78)
 
+    pilot = "_pilot" if (args.runs or args.cases) else ""
+    budget_sfx = f"_B{args.budget}" if args.budget else ""
+
     for tag, algos, overrides, question in todo:
         env = dict(os.environ)
-        env["WFLOP_TAG"] = f"abl_{tag}"
+        env["WFLOP_TAG"] = f"abl_{args.family}_{tag}{pilot}"
         env["WFLOP_DATASET"] = str(args.dataset)
         env["WFLOP_ALGOS"] = ",".join(algos)
         if overrides:
@@ -140,8 +148,9 @@ def main():
     print("ABLATION SUMMARY")
     print("=" * 78)
     rows = []
-    for tag, algos, overrides, question in todo:
-        path = f"results/RawResults_ds{args.dataset}_abl_{tag}.csv"
+    for tag, _algos, overrides, _question in todo:
+        path = (f"results/RawResults_ds{args.dataset}_abl_{args.family}_{tag}{pilot}"
+                f"{budget_sfx}.csv")
         p = os.path.join(HERE, path)
         if not os.path.exists(p):
             continue
@@ -150,7 +159,8 @@ def main():
             rows.append({
                 "Ablation": tag,
                 "Algorithm": alg,
-                "Override": json.dumps(overrides.get(alg, {})) or "-",
+                "Override": (json.dumps(overrides[alg])
+                             if alg in overrides else "-"),
                 "MeanWakeLoss": g.WakeLoss.mean(),
                 "MedianWakeLoss": g.WakeLoss.median(),
                 "BestWakeLoss": g.WakeLoss.min(),
@@ -163,7 +173,9 @@ def main():
         return
 
     out = pd.DataFrame(rows)
-    path = os.path.join(HERE, f"results/ablation_summary_ds{args.dataset}.csv")
+    path = os.path.join(HERE, f"results/ablation_summary_{args.family}"
+                              f"_ds{args.dataset}"
+                              f"{pilot}{budget_sfx}.csv")
     out.to_csv(path, index=False)
     with pd.option_context("display.width", 200,
                            "display.max_columns", 20):

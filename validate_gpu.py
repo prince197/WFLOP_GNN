@@ -27,6 +27,7 @@ Checks, in order of importance:
 ============================================================
 """
 
+import sys
 import time
 import numpy as np
 
@@ -35,6 +36,17 @@ from objective_gpu import objective_batch, make_objective
 from algorithms_gpu import build, ALGORITHMS
 from surrogate_gpu import BatchedGNWM, build_graphs, SDTYPE
 import gnn_algorithms_gpu  # noqa: F401  (registers the GNN optimizers)
+
+# Every failed check is recorded here; the script exits non-zero if any
+# failed, so `python validate_gpu.py || exit 1` really stops a job.
+FAILURES = []
+
+
+def verdict(ok, section):
+    if not ok:
+        FAILURES.append(section)
+    return "PASS" if ok else "FAIL"
+
 
 print("=" * 74)
 print("WFLOP GPU VALIDATION")
@@ -83,7 +95,8 @@ else:
     a = xp.zeros((512, 512), dtype=xp.float64)
     b = (a + 1.0) @ (a + 2.0)
     _cp.cuda.runtime.deviceSynchronize()
-    print(f"    fp64 kernel smoke : {'PASS' if float(b[0, 0]) == 1024.0 else 'FAIL'}")
+    print(f"    fp64 kernel smoke : "
+          f"{verdict(float(b[0, 0]) == 1024.0, '[0] fp64 kernel')}")
 
 # ------------------------------------------------------------------
 print("\n[1] Objective equivalence, wind data sets I and II")
@@ -110,7 +123,7 @@ if ORIG is not None:
             rel = np.abs(ref - got) / np.maximum(np.abs(ref), 1e-12)
             worst = max(worst, float(rel.max()))
         print(f"    data set {ds}: worst relative error so far {worst:.3e}")
-    print(f"    -> {'PASS' if worst < 1e-10 else 'FAIL'} "
+    print(f"    -> {verdict(worst < 1e-10, '[1] objective equivalence')} "
           f"(differences are float summation order, not physics)")
 
 # ------------------------------------------------------------------
@@ -146,7 +159,7 @@ if CPU_ALG is not None and hasattr(CPU_ALG, "_GNWMSurrogate"):
     dg = float(np.abs(asnumpy(gg)[0, 0] - gc).max())
     print(f"    edges: cpu {len(src)} / gpu {int(asnumpy(mg).sum())}")
     print(f"    power head relative diff {dp:.2e} | direction head max diff {dg:.2e}")
-    print(f"    -> {'PASS' if dp < 1e-5 and dg < 1e-4 else 'FAIL'} "
+    print(f"    -> {verdict(dp < 1e-5 and dg < 1e-4, '[2] surrogate forward')} "
           f"(float32 surrogate precision)")
 
 # gradient check (self-contained)
@@ -183,7 +196,7 @@ for name in ("Win", "W10", "U10", "V2", "bin", "d2"):
     worst_g = max(worst_g, abs(a - num) / max(abs(num), 1e-6))
 tol = 5e-2 if SDTYPE == xp.float32 else 1e-5
 print(f"    manual backprop vs numerical gradient: worst relative {worst_g:.2e}")
-print(f"    -> {'PASS' if worst_g < tol else 'FAIL'}"
+print(f"    -> {verdict(worst_g < tol, '[2] surrogate gradient')}"
       + ("  (loose float32 tolerance: the finite difference itself is only"
          " good to ~1e-2 here. For a strict check re-run with"
          " WFLOP_SURROGATE_DTYPE=float64, where this lands near 1e-6.)"
@@ -192,12 +205,22 @@ print(f"    -> {'PASS' if worst_g < tol else 'FAIL'}"
 # ------------------------------------------------------------------
 print("\n[3] Optimizer sanity  (4 runs x 8 individuals x 5 iterations)")
 radius, n = 500, 7
-f = make_objective(radius)
+_f = make_objective(radius)
+_rows = [0]
+
+
+def f(X):
+    """The objective, counting every layout actually computed."""
+    _rows[0] += int(X.shape[0]) if X.ndim > 1 else 1
+    return _f(X)
+
+
 all_ok = True
 for name in ALGORITHMS:
     kw = dict(n_pretrain=8, hidden=16, mp_layers=2, n_models=3) \
         if name.startswith("GNN") else {}
     alg = build(name, **kw)
+    _rows[0] = 0
     bx, bf, cv, ne = alg.optimize(f, 2 * n, -radius, radius, 4, 8, 5, seed=1)
     bxn, bfn, cvn = asnumpy(bx), asnumpy(bf), asnumpy(cv)
     shapes = bxn.shape == (4, 2 * n) and cvn.shape == (4, 6)
@@ -205,13 +228,19 @@ for name in ALGORITHMS:
     matches = bool(np.allclose(cvn[:, -1], bfn, rtol=1e-9, atol=1e-6))
     exact = bool(np.allclose(asnumpy(objective_batch(bxn, radius)), bfn,
                              rtol=1e-9, atol=1e-6))
-    ok = shapes and monotone and matches and exact
+    # counters: ObjectiveCalls must equal the layouts really computed, and
+    # Evaluations (what the optimizer used) can never exceed them
+    ev = np.broadcast_to(np.atleast_1d(asnumpy(ne)), (4,)).astype(float)
+    oc = np.broadcast_to(np.atleast_1d(asnumpy(
+        getattr(alg, "n_objective_calls", ne))), (4,)).astype(float)
+    counted = bool(oc.sum() == _rows[0] and np.all(ev <= oc))
+    ok = shapes and monotone and matches and exact and counted
     all_ok &= ok
-    print(f"    {name:12s} evals/run={int(np.mean(asnumpy(ne))):6d}  "
+    print(f"    {name:12s} evals/run={int(np.mean(ev)):6d}  "
           f"shapes={'ok' if shapes else 'BAD'}  "
           f"monotone={monotone}  best==curve_end={matches}  "
-          f"best==f(x)={exact}  {'PASS' if ok else 'FAIL'}")
-print(f"    -> {'PASS' if all_ok else 'FAIL'}")
+          f"best==f(x)={exact}  counters={counted}  {'PASS' if ok else 'FAIL'}")
+print(f"    -> {verdict(all_ok, '[3] optimizer sanity')}")
 
 # ------------------------------------------------------------------
 print("\n[3b] GNN family structure")
@@ -242,7 +271,7 @@ for _n, (_op, _uq) in _fam.items():
 _lines = len(inspect.getsource(_base.optimize).splitlines())
 print(f"    one shared implementation of {_lines} lines; the four subclasses "
       f"add nothing but two flags")
-print(f"    -> {'PASS' if _struct_ok else 'FAIL'}")
+print(f"    -> {verdict(_struct_ok, '[3b] GNN structure')}")
 
 
 # ------------------------------------------------------------------
@@ -312,7 +341,8 @@ print(f"    {'N=18, batch of 900, all finite':<46} "
 if not np.all(np.isfinite(_v)):
     edge_fail.append("N=18 batch")
 
-print(f"    -> {'PASS' if not edge_fail else 'FAIL: ' + ', '.join(edge_fail)}")
+print(f"    -> {verdict(not edge_fail, '[4] objective edge cases')}"
+      + (": " + ", ".join(edge_fail) if edge_fail else ""))
 
 
 # ------------------------------------------------------------------
@@ -338,4 +368,10 @@ for n in (9, 18):
 print("\nThroughput should climb with batch size and then flatten. Run the")
 print("campaign at or past that knee; raise it by putting more seeds in")
 print("lockstep (NUM_RUNS in run_experiments_gpu.py).")
+print("=" * 74)
+if FAILURES:
+    print(f"VALIDATION FAILED: {', '.join(FAILURES)}")
+    print("=" * 74)
+    sys.exit(1)
+print("VALIDATION PASSED")
 print("=" * 74)
