@@ -266,6 +266,47 @@ def expected_power_batch(c, chunk=None, omega=None):
 
 
 # ===============================================================
+# POWER CURVE SELECTION
+# ===============================================================
+# WFLOP_POWER=linear (default) keeps the benchmark's linearised ramp above.
+# WFLOP_POWER=ge15 uses the tabulated GE 1.5 MW / 77 m power curve of
+# power_ge15.py (NREL turbine-models), integrated over the Weibull
+# distribution by the midpoint rule on 0.25 m/s bins from cut-in to cut-out
+# (zero above cut-out). The weights, the 15-degree scaling and hence the
+# working units are those of the linear model, so only the curve changes.
+# The ideal power of both data sets becomes the isolated-turbine value
+# under this curve.
+POWER_CURVE = __import__("os").environ.get("WFLOP_POWER", "linear").lower()
+if POWER_CURVE not in ("linear", "ge15"):
+    raise ValueError(f"WFLOP_POWER must be 'linear' or 'ge15', not {POWER_CURVE!r}")
+
+if POWER_CURVE == "ge15":
+    import power_ge15 as _PC
+    _PC_EDGES = xp.asarray(_PC.EDGES, dtype=DTYPE)                     # (87,)
+    _PC_P = xp.asarray(_PC.P_MID, dtype=DTYPE)[:, None, None]          # (86,1,1)
+
+    def expected_power_batch(c, chunk=None, omega=None):   # noqa: F811
+        """c : (B, 24, N) waked speeds -> (B,) expected power, GE 1.5 MW curve."""
+        inv = 1.0 / c
+        w_sector = (W_SECTOR if omega is None
+                    else (SECTOR_WIDTH * omega)[None, :, None])
+        if chunk is None:
+            chunk = _auto_chunk(c)
+        n_bins = _PC_EDGES.shape[0] - 1
+        step = n_bins if chunk is None else max(1, int(chunk))
+        per_turbine = xp.zeros((c.shape[0], c.shape[2]), dtype=c.dtype)
+        for s0 in range(0, n_bins, step):
+            s1 = min(s0 + step, n_bins)
+            E = xp.exp(-((_PC_EDGES[s0:s1 + 1][:, None, None, None] * inv[None]) ** K_SHAPE))
+            band = w_sector[None] * (E[:-1] - E[1:])                   # (s1-s0,B,24,N)
+            per_turbine = per_turbine + xp.sum(_PC_P[s0:s1] * xp.sum(band, axis=2), axis=0)
+        return xp.sum(per_turbine, axis=1)
+
+    IDEAL_POWER_SCEN1 = float(expected_power_batch(
+        PSI_1.reshape(1, 24, 1), omega=OMEGA_1)[0])
+
+
+# ===============================================================
 # CONSTRAINT PENALTIES
 # ===============================================================
 def boundary_penalty_batch(P, farm_radius):

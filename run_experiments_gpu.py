@@ -853,6 +853,8 @@ def write_manifest():
                 _O.CT, "min_spacing": _O.MIN_SPACING, "penalty": _O.PENALTY,
             "ideal_power_ds1": _O.IDEAL_POWER_SCEN1,
             "ideal_power_ds2": _O.IDEAL_POWER_SCEN2,
+            "wake_model": getattr(_O, "WAKE_MODEL", "jensen"),
+            "power_curve": getattr(_O, "POWER_CURVE", "linear"),
             "wind_arrays_sha256": {
                 "omega_ds1": _arr_hash(_O.OMEGA_1),
                 "psi_ds1": _arr_hash(_O.PSI_1),
