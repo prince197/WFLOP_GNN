@@ -787,3 +787,25 @@ treatment (sector centres only vs 1° resolution). The as-built layout is
 feasible: all turbines inside or on the hull, minimum spacing 559 m = 6.99 D,
 zero penalty.
 
+
+**Cost at N = 80** (4-core CPU, NumPy, one BLAS thread per worker, measured):
+
+| group (30 runs × pop 30 × 100 iterations) | wall time | peak RAM |
+|---|---|---|
+| PF (and GA, PSO, DE, GWO, BBO, SSA: same evaluation count) | ~5 min Jensen (Gaussian ~1.5×) | ~1 GB |
+| LXSSA (twice the evaluations) | ~10 min Jensen | ~1 GB |
+| GNNLXSSA | ~7.7 h Jensen, ~8 h Gaussian (extrapolated from 10 iterations: set-up incl. 25-epoch pre-training ~88 min, ~110 s per iteration, ~580 s per fine-tune every 5 iterations) | **~8 GB** |
+
+The GNN group dominates. Two GNN processes do not fit in 16 GB, so on such a
+machine the two wake models' GNN groups must run one after the other. Extra
+BLAS threads help the surrogate only 1.2–1.8× (it is memory-bound). GNN-LX-SSA
+spends at most 70 + 64N = 5,190 exact evaluations before iterating at N = 80,
+plus at most 14 per iteration (≤ 6,590 per run at 100 iterations). The eight
+classical baselines spend 3,030 (LX-SSA 6,030).
+
+**Caveat: feasibility of the baselines.** The eight classical algorithms start
+from uniform random layouts in the search box and rely on the penalty alone.
+At N = 80 they did not reach a single feasible layout: PF at full settings
+had 0/30 feasible (median objective 7e25), and all eight were infeasible in the
+smoke runs. GNN-LX-SSA starts from sampled feasible layouts and repairs its
+candidates, so it returns feasible layouts (30/30 in the timing run).
