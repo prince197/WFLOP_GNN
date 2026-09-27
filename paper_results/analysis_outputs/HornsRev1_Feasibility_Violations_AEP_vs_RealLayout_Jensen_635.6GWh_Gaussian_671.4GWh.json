@@ -1,0 +1,180 @@
+{
+ "jensen": {
+  "_real": {
+   "ep_kW": 72555.12279530012,
+   "aep_GWh": 635.5828756868291,
+   "wake_loss_pct": 14.562463335354304,
+   "ideal_kW": 84921.83369013686,
+   "min_spacing_m": 559.15024814445
+  },
+  "BBO": {
+   "runs": 30,
+   "feasible": 0,
+   "evals": 3030,
+   "med_n_out": 6.0,
+   "med_n_close": 16.5,
+   "med_min_sp": 243.18672897248172,
+   "med_max_out": 88.8659858231008,
+   "min_obj": 1.7495844087608735e+24
+  },
+  "DE": {
+   "runs": 30,
+   "feasible": 0,
+   "evals": 3030,
+   "med_n_out": 5.5,
+   "med_n_close": 46.0,
+   "med_min_sp": 57.538533187164276,
+   "med_max_out": 229.14141729237437,
+   "min_obj": 5.158313377783331e+25
+  },
+  "GA": {
+   "runs": 30,
+   "feasible": 0,
+   "evals": 3030,
+   "med_n_out": 13.5,
+   "med_n_close": 35.0,
+   "med_min_sp": 55.663101835680706,
+   "med_max_out": 390.24636472836687,
+   "min_obj": 7.126188499292995e+25
+  },
+  "GWO": {
+   "runs": 30,
+   "feasible": 0,
+   "evals": 3030,
+   "med_n_out": 2.5,
+   "med_n_close": 89.0,
+   "med_min_sp": 85.69562590392954,
+   "med_max_out": 58.565005129126234,
+   "min_obj": 4.152312304751827e+25
+  },
+  "LXSSA": {
+   "runs": 30,
+   "feasible": 0,
+   "evals": 6030,
+   "med_n_out": 7.0,
+   "med_n_close": 31.5,
+   "med_min_sp": 205.92156297677508,
+   "med_max_out": 89.45037760619743,
+   "min_obj": 4.96499888266888e+24
+  },
+  "PF": {
+   "runs": 30,
+   "feasible": 0,
+   "evals": 3030,
+   "med_n_out": 17.0,
+   "med_n_close": 32.0,
+   "med_min_sp": 95.10962553486847,
+   "med_max_out": 305.4901162683343,
+   "min_obj": 2.2572079985545496e+25
+  },
+  "PSO": {
+   "runs": 30,
+   "feasible": 0,
+   "evals": 3030,
+   "med_n_out": 24.0,
+   "med_n_close": 32.0,
+   "med_min_sp": 51.87573660242433,
+   "med_max_out": 748.2242267829745,
+   "min_obj": 1.7577763458995988e+26
+  },
+  "SSA": {
+   "runs": 30,
+   "feasible": 0,
+   "evals": 3030,
+   "med_n_out": 9.0,
+   "med_n_close": 34.5,
+   "med_min_sp": 190.72440102895357,
+   "med_max_out": 142.07469771503224,
+   "min_obj": 6.833658931309185e+24
+  }
+ },
+ "gaussian": {
+  "_real": {
+   "ep_kW": 76647.33811576024,
+   "aep_GWh": 671.4306818940596,
+   "wake_loss_pct": 9.743660981896163,
+   "ideal_kW": 84921.83369013686,
+   "min_spacing_m": 559.15024814445
+  },
+  "BBO": {
+   "runs": 30,
+   "feasible": 0,
+   "evals": 3030,
+   "med_n_out": 6.0,
+   "med_n_close": 16.5,
+   "med_min_sp": 243.18672897248172,
+   "med_max_out": 88.8659858231008,
+   "min_obj": 1.7495844087608735e+24
+  },
+  "DE": {
+   "runs": 30,
+   "feasible": 0,
+   "evals": 3030,
+   "med_n_out": 5.5,
+   "med_n_close": 46.0,
+   "med_min_sp": 57.538533187164276,
+   "med_max_out": 229.14141729237437,
+   "min_obj": 5.158313377783331e+25
+  },
+  "GA": {
+   "runs": 30,
+   "feasible": 0,
+   "evals": 3030,
+   "med_n_out": 13.5,
+   "med_n_close": 35.0,
+   "med_min_sp": 55.663101835680706,
+   "med_max_out": 390.24636472836687,
+   "min_obj": 7.126188499292995e+25
+  },
+  "GWO": {
+   "runs": 30,
+   "feasible": 0,
+   "evals": 3030,
+   "med_n_out": 2.5,
+   "med_n_close": 89.0,
+   "med_min_sp": 85.69562590392954,
+   "med_max_out": 58.565005129126234,
+   "min_obj": 4.152312304751827e+25
+  },
+  "LXSSA": {
+   "runs": 30,
+   "feasible": 0,
+   "evals": 6030,
+   "med_n_out": 7.0,
+   "med_n_close": 31.5,
+   "med_min_sp": 205.92156297677508,
+   "med_max_out": 89.45037760619743,
+   "min_obj": 4.96499888266888e+24
+  },
+  "PF": {
+   "runs": 30,
+   "feasible": 0,
+   "evals": 3030,
+   "med_n_out": 17.0,
+   "med_n_close": 32.0,
+   "med_min_sp": 95.10962553486847,
+   "med_max_out": 305.4901162683343,
+   "min_obj": 2.2572079985545496e+25
+  },
+  "PSO": {
+   "runs": 30,
+   "feasible": 0,
+   "evals": 3030,
+   "med_n_out": 24.0,
+   "med_n_close": 32.0,
+   "med_min_sp": 51.87573660242433,
+   "med_max_out": 748.2242267829745,
+   "min_obj": 1.7577763458995988e+26
+  },
+  "SSA": {
+   "runs": 30,
+   "feasible": 0,
+   "evals": 3030,
+   "med_n_out": 9.0,
+   "med_n_close": 34.5,
+   "med_min_sp": 190.72440102895357,
+   "med_max_out": 142.07469771503224,
+   "min_obj": 6.833658931309185e+24
+  }
+ }
+}
