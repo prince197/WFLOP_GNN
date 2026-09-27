@@ -1,0 +1,30 @@
+==========================================================================
+WFLOP GPU CAMPAIGN
+CPU / NumPy 2.4.6 (dtype=float64)
+batch per objective call : 30 seeds x 30 individuals = 900 layouts
+cores available          : 4
+worker processes         : 4 (1 BLAS thread(s) each)
+wind data set            : 1
+algorithms               : GNNLXSSA
+regime                   : fixed iterations (100)
+manifest                 : results/manifest_ds1_ge15_GNNLXSSA_1000.json
+note: the GNN optimizers hold large surrogate tensors; if a worker runs out of
+      memory, lower WFLOP_WORKERS.
+==========================================================================
+groups total 11 | done 0 | pending 11
+==========================================================================
+[1/11] R1000 T12 GNNLXSSA    best=       900.2  group=544.95s  evals/run=2198  elapsed=  9.1min  ETA= 90.8min
+[2/11] R1000 T11 GNNLXSSA    best=       679.7  group=454.14s  evals/run=2133  elapsed=  9.1min  ETA= 40.9min
+[3/11] R1000 T10 GNNLXSSA    best=       340.1  group=377.96s  evals/run=2070  elapsed=  9.1min  ETA= 24.2min
+[4/11] R1000 T 9 GNNLXSSA    best=       240.1  group=302.44s  evals/run=2005  elapsed=  9.1min  ETA= 15.9min
+[5/11] R1000 T 8 GNNLXSSA    best=         129  group=226.77s  evals/run=1941  elapsed=  9.1min  ETA= 10.9min
+[6/11] R1000 T 7 GNNLXSSA    best=       103.5  group=161.67s  evals/run=1877  elapsed=  9.1min  ETA=  7.6min
+[7/11] R1000 T 6 GNNLXSSA    best=       33.01  group=127.04s  evals/run=1812  elapsed=  9.7min  ETA=  5.5min
+[8/11] R1000 T 5 GNNLXSSA    best=       7.494  group= 90.48s  evals/run=1750  elapsed= 10.3min  ETA=  3.9min
+[9/11] R1000 T 4 GNNLXSSA    best=   1.455e-11  group= 62.99s  evals/run=1684  elapsed= 10.3min  ETA=  2.3min
+[10/11] R1000 T 3 GNNLXSSA    best=   1.455e-11  group= 41.09s  evals/run=1622  elapsed= 10.3min  ETA=  1.0min
+[11/11] R1000 T 2 GNNLXSSA    best=   7.276e-12  group= 25.70s  evals/run=1558  elapsed= 10.3min  ETA=  0.0min
+raw results sealed: results/RawResults_ds1_ge15_GNNLXSSA_1000.sha256
+==========================================================================
+results/RawResults_ds1_ge15_GNNLXSSA_1000.csv saved (330 rows) in 10.3 min
+==========================================================================
