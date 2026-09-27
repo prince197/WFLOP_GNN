@@ -62,10 +62,18 @@ from surrogate_gpu import BatchedGNWM, build_graphs, SDTYPE
 import objective_gpu as OBJ
 
 # wake-model constants shared with the surrogate's graph features
+# (objective_gpu rebinds R, K and CT for WFLOP_SITE=hornsrev)
 _WTR, _WTK = OBJ.R, OBJ.K
 _ALPHA_CONE = float(np.arctan(_WTK))
 _AJ = float(1.0 - np.sqrt(1.0 - OBJ.CT))
 _THETAS = xp.asarray(np.deg2rad(np.arange(0, 360, 15) + 7.5), dtype=DTYPE)
+_POLYGON = OBJ.SITE == "hornsrev"
+if _POLYGON:
+    # Horns Rev: the 12 sector flow directions of the site's wind rose, and
+    # wake-graph edges only to DOWNSTREAM turbines, like the site's objective
+    # (the benchmark graph keeps its original cone test).
+    _THETAS = OBJ.HR_THETA
+_DOWNSTREAM_ONLY = _POLYGON
 
 
 def _dataset_globals(dataset):
@@ -81,7 +89,13 @@ def _dataset_globals(dataset):
 # constraint repair  (Sec. III-E)
 # ===============================================================
 def boundary_repair(P, r):
-    """P : (...,N,2) in place-safe form."""
+    """P : (...,N,2) in place-safe form.
+
+    Benchmark: radial projection onto the disk of radius r.
+    Horns Rev (WFLOP_SITE=hornsrev): every point outside the farm polygon is
+    moved to the nearest point of the polygon (r is ignored)."""
+    if _POLYGON:
+        return OBJ.project_to_polygon(P)
     nrm = xp.sqrt(xp.sum(P * P, axis=-1))
     scale = xp.where(nrm > r, r / xp.maximum(nrm, 1e-12), 1.0)
     return P * scale[..., None]
@@ -93,6 +107,11 @@ def spacing_repair(P, r, passes=1, min_dist=None):
     The pair loop is kept sequential (later pairs see earlier pushes,
     exactly as in the CPU code); it is vectorised over every leading
     axis, so the loop length is N(N-1)/2 regardless of batch size.
+
+    Horns Rev: the two turbines of a pair are projected back onto the
+    polygon right after they are pushed apart, so later pairs of the sweep
+    see in-polygon positions; the per-pass boundary_repair then projects as
+    before. The benchmark sweep is unchanged.
     """
     md = 8.0 * _WTR if min_dist is None else min_dist
     n = P.shape[-2]
@@ -112,6 +131,19 @@ def spacing_repair(P, r, passes=1, min_dist=None):
                 shift = (0.5 * (md - d) + 1e-6)[..., None] * close[..., None]
                 P[..., i, :] = P[..., i, :] + u * shift
                 P[..., j, :] = P[..., j, :] - u * shift
+                if _POLYGON:
+                    if USING_GPU:           # no host sync: project every layout
+                        pair = OBJ.project_to_polygon(
+                            xp.stack([P[..., i, :], P[..., j, :]], axis=-2))
+                        P[..., i, :] = pair[..., 0, :]
+                        P[..., j, :] = pair[..., 1, :]
+                    else:                   # only the layouts this pair moved
+                        sel = xp.nonzero(close)
+                        Pi, Pj = P[..., i, :], P[..., j, :]      # views into P
+                        pair = OBJ.project_to_polygon(
+                            xp.stack([Pi[sel], Pj[sel]], axis=-2))
+                        Pi[sel] = pair[:, 0, :]
+                        Pj[sel] = pair[:, 1, :]
         if not moved:
             break
         P = boundary_repair(P, r)
@@ -140,6 +172,8 @@ def feasible_layouts(rng, shape, n, r, tries=200, min_dist=None):
     """
     md = 8.0 * _WTR if min_dist is None else min_dist
     B = int(np.prod(shape)) if len(shape) else 1
+    if _POLYGON:
+        return _feasible_layouts_polygon(rng, shape, n, tries, md)
 
     def disk(size):
         rad = r * xp.sqrt(xp.asarray(rng.random(size), dtype=DTYPE))
@@ -229,6 +263,108 @@ def feasible_layouts(rng, shape, n, r, tries=200, min_dist=None):
 
 def _finish(P, shape, n):
     return P.reshape(tuple(shape) + (n, 2))
+
+
+# ---------------------------------------------------------------
+# Horns Rev: the same sampler inside the farm polygon
+# ---------------------------------------------------------------
+def _polygon_uniform(rng, size):
+    """Uniform points in the (convex) farm polygon, shape size + (2,).
+
+    Fan triangulation from vertex 0: a triangle is chosen with probability
+    proportional to its area, then a uniform point inside it (reflection
+    of the unit square onto the triangle)."""
+    V = OBJ.HR_POLY
+    a, b, c = V[0], V[1:-1], V[2:]                          # (T,2) each
+    e1, e2 = b - a, c - a
+    area = 0.5 * xp.abs(e1[:, 0] * e2[:, 1] - e1[:, 1] * e2[:, 0])
+    cdf = xp.cumsum(area) / xp.sum(area)
+    tri = xp.searchsorted(cdf, xp.asarray(rng.random(size), dtype=DTYPE))
+    tri = xp.clip(tri, 0, area.shape[0] - 1)
+    u = xp.asarray(rng.random(size), dtype=DTYPE)
+    v = xp.asarray(rng.random(size), dtype=DTYPE)
+    flip = (u + v) > 1.0
+    u = xp.where(flip, 1.0 - u, u)
+    v = xp.where(flip, 1.0 - v, v)
+    return a + u[..., None] * e1[tri] + v[..., None] * e2[tri]
+
+
+def _polygon_inside(pts):
+    """(...,2) -> (...) bool, inside or on the farm polygon."""
+    return ~OBJ.polygon_nearest(pts[..., None, :])[2][..., 0]
+
+
+def _feasible_layouts_polygon(rng, shape, n, tries, md):
+    """feasible_layouts() for the Horns Rev polygon, returning (..., n, 2).
+
+    1. Rejection sampling, exactly as for the disk but with candidates drawn
+       uniformly in the polygon (max(tries, 30n) sequential draws).
+    2. The concentric-ring stage is specific to a circular farm and is
+       skipped; layouts that did not fill up go straight to
+    3. the hexagonal lattice (pitch 1.02*dmin, random rotation and offset),
+       keeping lattice points inside the polygon.
+    Anything still short gets random polygon points plus spacing repair.
+    With 80 turbines at 4D in the 19.6 km^2 hull stage 1 normally fills.
+    """
+    B = int(np.prod(shape)) if len(shape) else 1
+
+    # ---- 1. rejection sampling ----
+    T = max(tries, 30 * n)
+    cand = _polygon_uniform(rng, (B, T))                     # (B,T,2)
+    P = xp.zeros((B, n, 2), dtype=DTYPE)
+    cnt = xp.zeros(B, dtype=xp.int64)
+    rows = xp.arange(B)
+    slot = xp.arange(n)[None, :]
+    for t in range(T):
+        c = cand[:, t, :]
+        d = xp.sqrt(xp.sum((P - c[:, None, :]) ** 2, axis=-1))   # (B,n)
+        ok = xp.all(xp.where(slot < cnt[:, None], d >= md, True), axis=1)
+        ok = ok & (cnt < n)
+        k = xp.minimum(cnt, n - 1)
+        P[rows, k] = xp.where(ok[:, None], c, P[rows, k])
+        cnt = cnt + ok.astype(xp.int64)
+        if not USING_GPU and t % 25 == 0 and bool(xp.all(cnt >= n)):
+            break
+    full = cnt >= n
+    if bool(xp.all(full)):
+        return _finish(P, shape, n)
+
+    # ---- 3. hexagonal lattice inside the polygon ----
+    pitch = md * 1.02
+    rmax = float(xp.max(xp.sqrt(xp.sum(OBJ.HR_POLY ** 2, axis=-1))))
+    span = int(math.ceil((rmax + pitch) / pitch)) + 1
+    ii, jj = np.meshgrid(np.arange(-span, span + 1), np.arange(-span, span + 1))
+    base = np.stack([(ii + 0.5 * jj) * pitch, jj * (math.sqrt(3) / 2) * pitch],
+                    axis=-1).reshape(-1, 2)
+    base = xp.asarray(base[np.hypot(base[:, 0], base[:, 1]) <= rmax + 2 * pitch],
+                      dtype=DTYPE)                           # (M,2)
+    M = base.shape[0]
+    lay = P.copy()
+    need = ~full
+    for _ in range(64):
+        th = 2 * math.pi * xp.asarray(rng.random(B), dtype=DTYPE)
+        off = (xp.asarray(rng.random((B, 2)), dtype=DTYPE) - 0.5) * pitch
+        cs, sn = xp.cos(th)[:, None], xp.sin(th)[:, None]
+        x = base[None, :, 0] * cs - base[None, :, 1] * sn + off[:, 0:1]
+        y = base[None, :, 0] * sn + base[None, :, 1] * cs + off[:, 1:2]
+        inside = _polygon_inside(xp.stack([x, y], axis=-1))  # (B,M)
+        good = need & (xp.sum(inside, axis=1) >= n)
+        keys = xp.asarray(rng.random((B, M)), dtype=DTYPE) + xp.where(inside, 0.0, 2.0)
+        pick = xp.argsort(keys, axis=1)[:, :n]
+        cand_l = xp.stack([xp.take_along_axis(x, pick, axis=1),
+                           xp.take_along_axis(y, pick, axis=1)], axis=-1)
+        lay = xp.where(good[:, None, None], cand_l, lay)
+        need = need & ~good
+        if not bool(xp.any(need)):
+            break
+
+    # ---- best effort ----
+    if bool(xp.any(need)):
+        fill = _polygon_uniform(rng, (B, n))
+        rest = xp.where((slot < cnt[:, None])[..., None], P, fill)
+        rest = spacing_repair(rest, 0.0, passes=8, min_dist=md)
+        lay = xp.where(need[:, None, None], rest, lay)
+    return _finish(xp.where(full[:, None, None], P, lay), shape, n)
 
 
 # ===============================================================
@@ -324,7 +460,8 @@ class _GNNSalpBase(_Base):
         def graphs(P):
             """P : (R,G,n,2) -> surrogate inputs, replicated per ensemble member."""
             Xn, Ea, mk = build_graphs(P, r, omega, _THETAS, _ALPHA_CONE, _AJ,
-                                      _WTK, _WTR, psibar)
+                                      _WTK, _WTR, psibar,
+                                      downstream_only=_DOWNSTREAM_ONLY)
             if n_models == 1:
                 return Xn, Ea, mk
             rep = lambda A: xp.concatenate([A] * n_models, axis=0)

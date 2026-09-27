@@ -564,6 +564,8 @@ Environment variables:
 | `WFLOP_CASES`, `WFLOP_RUNS` | full grid, 30 | Restrict the case grid (`500:5,1000:18`) or the seed count, for pilots. |
 | `WFLOP_ALGOS` | all 14 | Comma-separated subset, e.g. `GA,SSA,GNNLXSSA`. The GNN family is far more expensive than the rest — splitting the campaign is usually the right move. |
 | `WFLOP_SURROGATE_DTYPE` | `float32` | `float64` for the strict gradient check. |
+| `WFLOP_SITE` | `benchmark` | `hornsrev` switches to the Horns Rev 1 real-site case (see the last section). |
+| `WFLOP_SURR_MEM_MB` | `6144` | Peak size of one surrogate inference pass; larger graph batches are split. Only N = 80 exceeds the default. |
 
 Resume works at (radius, turbines, algorithm) granularity, and only under the
 settings the checkpoint was written with (see §3).
@@ -726,3 +728,62 @@ root-sum-square superposition, penalty and expected-power integration are
 unchanged. Use a distinct `WFLOP_TAG` (e.g. `gauss`) so outputs do not mix with
 Jensen results; the wake model is recorded in the checkpoint fingerprint and the
 manifest.
+
+## Horns Rev 1 real-site case (`WFLOP_SITE=hornsrev`)
+
+`WFLOP_SITE=hornsrev` replaces the circular benchmark by the Horns Rev 1
+offshore wind farm. With `WFLOP_SITE` unset (`benchmark`) every result is
+bit-for-bit what it was before the switch existed.
+
+| | Horns Rev 1 case |
+|---|---|
+| Turbine | Vestas V80, D = 80 m, PyWake V80 power curve (kW, linear between knots, cut-in 3, cut-out 25 m/s). **Constant CT = 0.8** at every wind speed — a simplification (the real V80 ct falls to 0.05 at 25 m/s). |
+| Wind | PyWake `Hornsrev1Site`: 12 sectors of 30°, frequency + Weibull A, k per sector, TI = 0.1. Each sector is evaluated at its centre direction (meteorological 0°, 30°, …; mapped to the flow angle 270° − wd). |
+| Expected power | Per turbine Σ_s f_s ∫ P(v) Weibull(v; A_s(1 − d_is), k_s) dv, 0.25 m/s bins from 3 to 25 m/s, midpoint power × bin probability, in kW. |
+| Wake | Jensen/NOJ top-hat, K = 0.04, **downstream turbines only** (see below); or Gaussian (Bastankhah & Porté-Agel) with k* = 0.3837·0.1 + 0.003678 = 0.04205. Root-sum-square superposition, combined deficit capped at 0.999. |
+| Objective | ideal wake-free farm power − expected farm power (kW) + penalties. |
+| Boundary | Convex hull of the 80 as-built turbines (8 vertices, 19.61 km²), centred on its area centroid (UTM 32N 426733.0, 6149501.5). Penalty (1 + 1e10·d)² per turbine a distance d > 1 µm outside it. |
+| Spacing | 4D = 320 m, penalty (1 + 1e10·v)² per violated pair, as in the benchmark. |
+| Search box | [−2759, 2759]² m (half the larger side of the hull's bounding box; the hull is point-symmetric, so the box contains it). |
+| Case | one case, N = 80, stored as `Radius = 0`; seeds crc32("0\|80\|<alg>"). |
+| Algorithms | default: GNNLXSSA, PF, BBO, LXSSA, GWO, SSA, PSO, GA, DE (`WFLOP_ALGOS` overrides). |
+| Outputs | `_hr` tag after `WFLOP_TAG`: `results/RawResults_ds1_hr.csv`, `…_ds1_gauss_hr.csv` with `WFLOP_TAG=gauss`; `report.py --dataset 1 --tag hr` / `--tag gauss_hr`. The `Dataset` column stays 1 for file naming only. |
+
+Data (`site_hornsrev.py`) is copied from PyWake, so the campaign needs no
+PyWake; `validate_hornsrev.py` re-imports PyWake, asserts the copy is exact
+and compares AEPs.
+
+**Why the Horns Rev Jensen differs from the benchmark Jensen.** The benchmark's
+cone test measures the angle from a virtual apex R/K upstream of the source and
+has no downstream check, so a turbine up to R/K upstream of a source and inside
+the reversed cone also receives its deficit. At Horns Rev R/K = 1000 m and the
+rows are aligned with the 270° sector, so this would be a large error; the
+site's Jensen therefore adds x > 0, which is the standard NOJ and PyWake's
+`NOJDeficit`. The surrogate's wake graph uses the same downstream-only edges.
+The benchmark path is unchanged.
+
+**GNN-LX-SSA repair map.** `boundary_repair` projects every point outside the
+polygon to its nearest point on the polygon; `spacing_repair` keeps its sweep
+and additionally projects the two turbines of a pair back onto the polygon
+right after they are pushed apart; `feasible_layouts` samples uniformly in the
+polygon (rejection sampling, then a hexagonal lattice clipped to the polygon;
+the concentric-ring stage is circle-specific and skipped).
+
+**Validation** (`python validate_hornsrev.py`, PyWake 2.6.20), AEP of the
+as-built layout in GWh/yr. PyWake A uses the same 12 directions and 0.25 m/s
+bins; PyWake B its defaults (1° directions, 1 m/s):
+
+| wake | objective | PyWake A | diff | PyWake B | diff |
+|---|---|---|---|---|---|
+| Jensen | 635.583 | 635.245 | +0.053 % | 648.276 | −1.96 % |
+| Gaussian | 671.431 | 671.162 | +0.040 % | 692.238 | −3.01 % |
+
+Wake-free AEP 743.915 GWh in both. The residual against A comes almost
+entirely from free-stream speeds above 25 m/s, which PyWake's grid omits
+while the waked-Weibull integral still credits waked turbines that are below
+cut-out; with PyWake's grid extended to 45 m/s (ct 0.8 throughout) and fine
+bins the two agree to 1e-6. The difference against B is the direction
+treatment (sector centres only vs 1° resolution). The as-built layout is
+feasible: all turbines inside or on the hull, minimum spacing 559 m = 6.99 D,
+zero penalty.
+

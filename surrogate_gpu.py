@@ -48,6 +48,11 @@ SDTYPE = (xp.float64 if os.environ.get("WFLOP_SURROGATE_DTYPE", "float32")
 NODE_F = 7
 EDGE_F = 5
 
+# Peak-memory budget for one surrogate INFERENCE forward pass (see
+# BatchedGNWM._forward_chunked). Only large graphs (Horns Rev, N = 80) exceed
+# the default; override with WFLOP_SURR_MEM_MB.
+SURR_MEM_BUDGET_BYTES = int(float(os.environ.get("WFLOP_SURR_MEM_MB", 6144)) * 2**20)
+
 
 def _relu(z):
     return xp.maximum(z, 0)
@@ -146,11 +151,37 @@ class BatchedGNWM:
                           "gout": gout, "Eattr": Eattr, "maskf": maskf})
         return P, gout, cache
 
+    def _forward_chunked(self, Xn, Eattr, mask):
+        """Inference forward pass, split along the graph axis G when the
+        message tensors would exceed SURR_MEM_BUDGET_BYTES.
+
+        The (RM, G, N, N, 2F+5) message input grows with N^2: at N = 80
+        (Horns Rev) and G = 60 it is ~6 GB in float32, ~15 GB with the
+        other live intermediates. Every graph is independent, so splitting
+        G changes only the peak allocation. The default budget (6 GiB) is
+        above the largest benchmark forward pass (N = 18, UQ ensemble,
+        ~3.8 GB), so benchmark runs never split and stay bit for bit.
+        """
+        RM, G, N = Xn.shape[0], Xn.shape[1], Xn.shape[2]
+        item = xp.dtype(SDTYPE).itemsize
+        per_graph = RM * N * N * (2 * self.F + EDGE_F + 3 * self.F) * item
+        step = max(1, int(SURR_MEM_BUDGET_BYTES // max(per_graph, 1)))
+        if step >= G:
+            P, gout, _ = self.forward(Xn, Eattr, mask)
+            return P, gout
+        Ps, gs = [], []
+        for g0 in range(0, G, step):
+            P, gout, _ = self.forward(Xn[:, g0:g0 + step], Eattr[:, g0:g0 + step],
+                                      mask[:, g0:g0 + step])
+            Ps.append(P)
+            gs.append(gout)
+        return xp.concatenate(Ps, axis=1), xp.concatenate(gs, axis=1)
+
     def predict(self, Xn, Eattr, mask):
-        return self.forward(Xn, Eattr, mask)[0]
+        return self._forward_chunked(Xn, Eattr, mask)[0]
 
     def guidance(self, Xn, Eattr, mask):
-        P, gout, _ = self.forward(Xn, Eattr, mask)
+        P, gout = self._forward_chunked(Xn, Eattr, mask)
         nrm = xp.sqrt(xp.sum(gout * gout, axis=-1, keepdims=True))
         return P, gout / xp.maximum(nrm, 1e-12)
 
@@ -321,11 +352,17 @@ class BatchedGNWM:
 # ===============================================================
 # GRAPH CONSTRUCTION  (Eqs. 24-25), batched and dense
 # ===============================================================
-def build_graphs(P, r, omega, thetas, alpha_cone, aj, wt_k, wt_r, psibar):
+def build_graphs(P, r, omega, thetas, alpha_cone, aj, wt_k, wt_r, psibar,
+                 downstream_only=False):
     """P : (B,G,N,2) positions -> (Xn, Eattr, mask) for the surrogate.
 
     Mirrors _GNWMSurrogate.build_graph: direction-aggregated wake mask
-    over the 24 bins, five edge features, seven node features.
+    over the direction bins (24 for the benchmark, 12 for Horns Rev),
+    five edge features, seven node features.
+
+    downstream_only=True (Horns Rev) adds the condition that the receiving
+    turbine lies strictly downstream (proj > 0), matching that site's NOJ
+    objective; the default keeps the benchmark's original cone test.
     """
     B, G, N, _ = P.shape
     RK = wt_r / wt_k
@@ -350,6 +387,8 @@ def build_graphs(P, r, omega, thetas, alpha_cone, aj, wt_k, wt_r, psibar):
         den = xp.maximum(xp.sqrt((dx + RK * ct) ** 2 + (dy + RK * st) ** 2), 1e-12)
         beta = xp.arccos(xp.clip((proj + RK) / den, -1, 1))
         msk = (beta < alpha_cone) & (~eye)
+        if downstream_only:
+            msk = msk & (proj > 0)
         mf = msk.astype(SDTYPE)
         defc = aj / (1.0 + (wt_k / wt_r) * d) ** 2
         sumw = sumw + w * mf

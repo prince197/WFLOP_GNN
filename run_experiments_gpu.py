@@ -78,6 +78,20 @@ campaign. Without the flag the column is NaN.
 
 `Evaluations` is exact either way, and is the budget measure that
 belongs in a paper.
+
+HORNS REV 1 (WFLOP_SITE=hornsrev)
+---------------------------------
+The real-site case: one farm, the convex hull of the 80 as-built Horns
+Rev 1 turbines, N = 80 V80 turbines (see objective_gpu.py and
+site_hornsrev.py). FARM_CASES becomes {0: [80]}: the case is stored with
+Radius = 0, so group seeds are crc32("0|80|<algorithm>"). The optimizers
+search the square [-h, h]^2 around the polygon (h = 2759 m). The default
+algorithm list is the nine GNNLXSSA, PF, BBO, LXSSA, GWO, SSA, PSO, GA,
+DE (WFLOP_ALGOS still overrides it). The wind is the site's own rose, so
+WFLOP_DATASET must be left at 1; every output name carries an "_hr" tag
+(after WFLOP_TAG), e.g. results/RawResults_ds1_hr.csv, or
+results/RawResults_ds1_gauss_hr.csv with WFLOP_TAG=gauss. WFLOP_SMOKE=1
+keeps the N = 80 case and shrinks runs/population/iterations to 4/8/10.
 ============================================================
 """
 
@@ -164,7 +178,7 @@ import pandas as pd
 from concurrent.futures import ProcessPoolExecutor
 
 from backend import xp, asnumpy, device_info, USING_GPU
-from objective_gpu import make_objective, energy_production_batch
+from objective_gpu import make_objective, energy_production_batch, search_box
 from algorithms_gpu import build
 
 # ------------------------------------------------------------------
@@ -176,12 +190,26 @@ ALGORITHM_NAMES = ["GA", "PSO", "DE", "GWO", "BBO", "SSA", "LXSSA", "QASSA",
                    "ACO", "PF",
                    "GNNLXSSA", "GNNQASSA", "GNNLXSSA_UQ", "GNNQASSA_UQ"]
 
+# WFLOP_SITE=hornsrev: the Horns Rev 1 real-site case (see module header).
+SITE = os.environ.get("WFLOP_SITE", "benchmark").lower()
+if SITE not in ("benchmark", "hornsrev"):
+    raise SystemExit(f"WFLOP_SITE must be 'benchmark' or 'hornsrev' (got {SITE!r})")
+HORNSREV = SITE == "hornsrev"
+HR_TURBINES = 80
+if HORNSREV:
+    FARM_CASES = {0: [HR_TURBINES]}          # radius field 0 -> crc32("0|80|alg")
+    ALGORITHM_NAMES = ["GNNLXSSA", "PF", "BBO", "LXSSA", "GWO", "SSA", "PSO",
+                       "GA", "DE"]
+_ALL_ALGORITHMS = ["GA", "PSO", "DE", "GWO", "BBO", "SSA", "LXSSA", "QASSA",
+                   "ACO", "PF",
+                   "GNNLXSSA", "GNNQASSA", "GNNLXSSA_UQ", "GNNQASSA_UQ"]
+
 # WFLOP_ALGOS="GA,SSA,GNNLXSSA" runs a subset (the GNN family is far more
 # expensive than the rest, so you will often want to split the campaign).
 _sel = os.environ.get("WFLOP_ALGOS")
 if _sel:
     want = [a.strip() for a in _sel.split(",") if a.strip()]
-    unknown = [a for a in want if a not in ALGORITHM_NAMES]
+    unknown = [a for a in want if a not in _ALL_ALGORITHMS]
     if unknown:
         raise SystemExit(f"unknown algorithm(s) in WFLOP_ALGOS: {unknown}")
     ALGORITHM_NAMES = want
@@ -190,12 +218,15 @@ if _sel:
 DATASET = int(os.environ.get("WFLOP_DATASET", 1))
 if DATASET not in (1, 2):
     raise SystemExit(f"WFLOP_DATASET must be 1 or 2 (got {DATASET})")
+if HORNSREV and DATASET != 1:
+    raise SystemExit("WFLOP_SITE=hornsrev uses the Horns Rev wind rose; leave "
+                     "WFLOP_DATASET unset (1). Outputs are tagged _hr instead.")
 
 # WFLOP_SMOKE=1 runs a two-minute version of the campaign so you can prove the
 # whole pipeline works on the GPU node before queuing the real job.
 SMOKE = os.environ.get("WFLOP_SMOKE") == "1"
 if SMOKE:
-    FARM_CASES = {500: range(4, 6)}
+    FARM_CASES = {0: [HR_TURBINES]} if HORNSREV else {500: range(4, 6)}
     NUM_RUNS, POP, ITER = 4, 8, 10
 
 # WFLOP_CASES restricts the grid to named cases, e.g. "500:5,500:9,1000:18".
@@ -440,6 +471,7 @@ def parse_coordinates(text):
 # The fixed-budget regime and the smoke test get their OWN files as well, so
 # neither can be mistaken for - or resumed from - the fixed-iteration campaign.
 _TAG = "".join(f"_{p}" for p in (RUN_TAG,
+                                 "hr" if HORNSREV else "",
                                  "smoke" if SMOKE else "",
                                  f"B{BUDGET}" if BUDGET else "") if p)
 CHECKPOINT_PATH = f"results/RawResults_checkpoint_ds{DATASET}{_TAG}.csv"
@@ -466,7 +498,9 @@ def run_settings():
                                               "float32").lower(),
             # the wake model only enters the fingerprint when it is not the
             # default, so Jensen checkpoints written before it existed resume
-            **({} if _WAKE == "jensen" else {"wake": _WAKE, "ti": _TI})}
+            **({} if _WAKE == "jensen" else {"wake": _WAKE, "ti": _TI}),
+            # likewise the site, so benchmark checkpoints are unaffected
+            **({"site": SITE} if HORNSREV else {})}
 
 # ---------------------------------------------------------------------------
 # CONVERGENCE CURVES
@@ -666,6 +700,7 @@ def run_group(group):
         return group, None, None, None, 0.0, None, None, None
 
     f = make_objective(radius, dataset=DATASET)
+    lb, ub = search_box(radius)              # [-radius, radius] or Horns Rev box
     kw = dict(dataset=DATASET) if alg_name.startswith("GNN") else {}
     kw.update(ALGO_KWARGS.get(alg_name, {}))
     if cap is not None:
@@ -674,7 +709,7 @@ def run_group(group):
 
     t0 = time.perf_counter()
     best_x, best_f, curves, n_evals = algo.optimize(
-        f, dim, -radius, radius, NUM_RUNS, POP, iters,
+        f, dim, lb, ub, NUM_RUNS, POP, iters,
         seed=group_seed_of(radius, n_turb, alg_name))
     if USING_GPU:
         xp.cuda.runtime.deviceSynchronize()
@@ -684,7 +719,7 @@ def run_group(group):
     if TIME_SINGLE_RUN:
         solo = build(alg_name, **kw)
         t1 = time.perf_counter()
-        solo.optimize(f, dim, -radius, radius, 1, POP, iters,
+        solo.optimize(f, dim, lb, ub, 1, POP, iters,
                       seed=group_seed_of(radius, n_turb, alg_name))
         if USING_GPU:
             xp.cuda.runtime.deviceSynchronize()
@@ -799,6 +834,7 @@ def write_manifest():
         return hashlib.sha256(np.ascontiguousarray(
             asnumpy(a), dtype=np.float64).tobytes()).hexdigest()[:16]
 
+    _COST_NS = (HR_TURBINES,) if HORNSREV else (2, 9, 18)
     params = {k: dict(v) for k, v in sorted(_A.DEFAULT_KWARGS.items())
               if k in ALGORITHM_NAMES}
     cases = [(r, n) for r, rng_ in FARM_CASES.items() for n in rng_]
@@ -825,9 +861,9 @@ def write_manifest():
             "n_pretrain": N_PRETRAIN, "fd_fraction": FD_FRACTION,
             "fd_max": FD_MAX, "mu": MU,
             "mandatory": {a: {str(n): mandatory_cost(a, n)
-                              for n in (2, 9, 18)} for a in ALGORITHM_NAMES},
+                              for n in _COST_NS} for a in ALGORITHM_NAMES},
             "per_iteration": {a: {str(n): per_iteration_cost(a, n)
-                                  for n in (2, 9, 18)}
+                                  for n in _COST_NS}
                               for a in ALGORITHM_NAMES}},
         "surrogate": {
             "hidden": 64, "message_passing_layers": 3,
@@ -882,6 +918,18 @@ def write_manifest():
                      "cupy": cupy_ver, "platform": platform.platform()},
         "source_sha256": src,
     }
+    manifest["site"] = SITE
+    if HORNSREV:
+        import site_hornsrev as _HR
+        manifest["hornsrev"] = dict(
+            _HR.summary(),
+            wake_decay_jensen=_O.K, k_star_gaussian=_O.K_STAR,
+            ideal_power_per_turbine_kw=_O.HR_IDEAL,
+            search_box=list(search_box(0)),
+            real_layout_file="site_hornsrev.REAL_LAYOUT",
+            note=("constant CT = 0.8 (simplification); Jensen restricted to "
+                  "downstream turbines (standard NOJ); Dataset column is 1 "
+                  "only for file naming - the Horns Rev rose is used"))
     if _TAG:
         manifest["tag"] = _TAG.lstrip("_")
     manifest["checkpoint_settings"] = run_settings()
@@ -904,7 +952,10 @@ def main():
     print(f"cores available          : {CORES}")
     print(f"worker processes         : {WORKERS} "
           f"({THREADS_PER_WORKER} BLAS thread(s) each)")
-    print(f"wind data set            : {DATASET}")
+    print(f"wind data set            : "
+          + ("Horns Rev 1 site (12-sector rose, N = 80, polygon)"
+             if HORNSREV else f"{DATASET}"))
+    print(f"wake model               : {_WAKE}")
     print(f"algorithms               : {', '.join(ALGORITHM_NAMES)}")
     print("regime                   : "
           + (f"fixed budget, {BUDGET} exact evaluations per run"
