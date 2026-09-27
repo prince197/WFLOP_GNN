@@ -1,0 +1,2 @@
+jensen GA exit 0
+gaussian GA exit 0
