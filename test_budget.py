@@ -83,9 +83,9 @@ for alg in ALGOS:
                     if b >= mand + floor_per:
                         bad.append(f"N={n} B={b}: infeasible but affordable")
                     continue
-                if per is None:
-                    # Data-dependent: the cap itself is passed to the optimizer
-                    # and layer [3] checks it is honoured.
+                if cap is not None:
+                    # Data-dependent (GNN family): the cap itself is passed to
+                    # the optimizer and layer [3] checks it is honoured.
                     if cap != b:
                         bad.append(f"N={n} B={b}: cap not passed through")
                     continue
@@ -149,7 +149,8 @@ report(not infeasible, f"budget {B:,} feasible for every algorithm at every N",
        f"{len(infeasible)} infeasible pairs" if infeasible else "")
 
 # ===================================================================
-print("\n[3] Execution: measured evaluations never exceed the budget")
+print("\n[3] Execution: measured evaluations never exceed the budget "
+      "(and capped GNN runs spend it exactly)")
 run_algos = ALGOS if args.full else [
     "GA", "LXSSA", "ACO", "PF", "GNNLXSSA", "GNNLXSSA_UQ", "GNNQASSA_UQ"]
 run_ns = [2, 9, 18] if args.full else [2, 9]
@@ -177,12 +178,17 @@ for B_ in budgets:
             oc = np.atleast_1d(np.asarray(R.asnumpy(
                 getattr(a, "n_objective_calls", ne)))).astype(float)
             ok = bool(np.all(ev <= B_))
+            # a capped (GNN) run must also SPEND its budget: stopping short
+            # would make the method look cheap while denying it the search
+            if cap is not None:
+                ok = ok and bool(np.all(ev == B_))
             span = (f"{ev.min():,.0f}" if ev.min() == ev.max()
                     else f"{ev.min():,.0f}-{ev.max():,.0f}")
             print(f"    {alg:<13} {n:3d} {B_:7,} {iters:6,} {span:>16} "
                   f"{oc.max():7,.0f}  {'PASS' if ok else 'FAIL  <<<'}")
             if not ok:
-                fail.append(f"{alg} N={n} B={B_}: spent {ev.max():.0f}")
+                fail.append(f"{alg} N={n} B={B_}: spent "
+                            f"{ev.min():.0f}-{ev.max():.0f}")
             sys.stdout.flush()
 
 print("\n" + "=" * 78)

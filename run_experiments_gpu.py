@@ -236,8 +236,11 @@ if os.environ.get("WFLOP_RUNS"):
 #     LX-SSA, QA-SSA             pop                       2*pop
 #     ACO                        1                         N + pop
 #     GNN-LX/QA-SSA              pop + n_pretrain          n_exact + 2
-#                                + 4*N*n_fd  (= 70 + 64N)
+#                                + 4*N*n_fd  (= 70 + 64N)  (upper bounds)
 #     GNN-*-UQ                   same as above             data-dependent
+#
+#   The GNN family's spend is data-dependent, so under a budget it is given
+#   the cap itself and runs until every run has spent it (see iterations_for).
 #
 #   The GNN mandatory cost GROWS WITH N - 198 at N=2, 1,222 at N=18 - because
 #   the finite-difference direction labels cost 4N evaluations per sampled
@@ -346,19 +349,24 @@ def iterations_for(alg_name, n_turb, budget):
     if budget < mand + floor_per:
         return 0, None, "infeasible"
 
-    if per is None:
-        # Data-dependent spend. The optimizer is given the cap itself and
-        # truncates its gate admissions to whatever budget is left, so it stops
-        # at the cap exactly rather than after overshooting it.
+    if alg_name.startswith("GNN"):
+        # Data-dependent spend: the UQ gate, the number of finite-difference
+        # labels a run receives (only feasible samples get one) and duplicate
+        # exploration probes all vary run to run. The optimizer is given the
+        # cap itself and truncates its exact evaluations to whatever budget is
+        # left, so every run stops at the cap exactly rather than overshooting
+        # it - or, with a count derived from the worst case, stopping short.
         #
         # It also needs an iteration ceiling, and that ceiling must not be an
-        # arbitrary number: an under-generous one would stop the gated method
-        # before it had spent its budget, making it look artificially cheap
-        # while denying it the search the others got. The principled value is
-        # the point past which the budget cannot stretch even if the gate
-        # admitted the bare minimum of one candidate per iteration - so the
-        # budget, not the ceiling, is always what binds.
-        ceiling = int(os.environ.get("WFLOP_UQ_MAX_ITERS", 0)) or (budget - mand)
+        # arbitrary number: an under-generous one would stop the method before
+        # it had spent its budget, making it look artificially cheap while
+        # denying it the search the others got. The principled value is the
+        # point past which the budget cannot stretch even at one exact
+        # evaluation per iteration after the smallest possible start-up cost
+        # (no finite-difference labels) - so the budget always binds.
+        n_pre = _gnn_setting(alg_name, "n_pretrain", N_PRETRAIN)
+        ceiling = (int(os.environ.get("WFLOP_UQ_MAX_ITERS", 0))
+                   or (budget - POP - n_pre))
         return max(1, ceiling), budget, "ok"
 
     return (budget - mand) // per, None, "ok"     # floor: never overshoot

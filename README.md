@@ -396,8 +396,9 @@ That sets a floor on any common budget for the whole N = 2..18 campaign:
 
 **The smallest budget that works everywhere is 1,236.** A practical common
 budget is **3,000**: feasible for every algorithm at every N, and it leaves the
-GNN family 127 iterations at N=18 and the classical algorithms 99 — close
-enough to the fixed-iteration regime that the two campaigns are comparable.
+classical algorithms 99 iterations and the GNN family at least 127 at N=18
+(more when fewer finite-difference labels are charged) — close enough to the
+fixed-iteration regime that the two campaigns are comparable.
 Confirm before freezing with `python test_budget.py --budget 3000`, and state
 the chosen budget and this rationale in the papers.
 
@@ -405,16 +406,20 @@ The GNN cost-model parameters (`n_pretrain`, `fd_fraction`, `fd_max`, `mu`)
 are read from `WFLOP_ALGO_KWARGS` when overridden, so an ablation that changes
 them keeps the budget exact.
 
-The two UQ variants cannot have an iteration count derived in advance — their
-spend is data-dependent — so they get the budget as a hard cap and truncate
-their gate admissions to whatever budget is left, spending it on the
-best-predicted candidates. **Each run spends its own budget in full**: a run
+The four GNN variants cannot have an iteration count derived in advance — their
+spend is data-dependent (the UQ gate; finite-difference labels only for
+feasible pre-training samples; duplicate probes charged once) — so they get the
+budget as a hard cap and truncate their exact evaluations to whatever budget is
+left, spending it on the best-screened candidates. Deriving a count from the
+worst-case cost instead would leave runs with unspent budget. **Each run spends its own budget in full**: a run
 that has reached the cap admits nothing more and holds its incumbent (which
 only ever takes exact values) while the others finish, and the batch stops
 once every run has reached the cap. That is precisely what "best found within
-budget B" means. Their iteration ceiling is `budget − mandatory`, the point
-past which the budget cannot stretch even at one evaluation per iteration (the
-trust anchor guarantees at least one), so the budget always binds.
+budget B" means. Their iteration ceiling is `budget − pop − n_pretrain`, the
+point past which the budget cannot stretch even at one evaluation per
+iteration after the smallest possible start-up cost, so the budget always
+binds. `test_budget.py` checks that every capped run spends its budget
+exactly.
 
 Under a budget the annealing schedules (the leader step `r1` and the guidance
 weight `tau`) follow the **fraction of the budget spent** rather than

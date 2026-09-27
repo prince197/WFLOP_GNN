@@ -53,7 +53,7 @@ def main():
                 iters, cap, status = R.iterations_for(alg, n, b)
                 if status == "infeasible":
                     continue
-                if R.per_iteration_cost(alg, n) is None:
+                if cap is not None:        # capped inside the optimizer
                     continue
                 if R.budget_cost(alg, n, iters) > b:
                     over.append(f"{alg} N={n} B={b}")

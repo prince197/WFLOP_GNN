@@ -201,10 +201,11 @@ class _GNNSalpBase(_Base):
         fd_max = self.kw.get("fd_max", 16)
         dataset = self.kw.get("dataset", 1)
         # Hard cap on exact evaluations, used by the fixed-budget regime. The
-        # UQ variants cannot have their iteration count derived from a budget
-        # in advance (the gate is data-dependent), so each run spends until it
-        # reaches the cap and then holds its incumbent; the batch stops once
-        # EVERY run has reached it.
+        # spend of every GNN variant is data-dependent (the UQ gate, the
+        # finite-difference labels a run receives, duplicate probes), so the
+        # iteration count cannot be derived in advance: each run spends until
+        # it reaches the cap and then holds its incumbent, and the batch stops
+        # once EVERY run has reached it.
         max_evals = self.kw.get("max_evals", None)
         # The CPU replay buffer is unbounded; so is this one by default.
         buffer_cap = self.kw.get("buffer_cap", None)
@@ -311,12 +312,17 @@ class _GNNSalpBase(_Base):
             key = xp.where(feas, ar, ar + n_pretrain)
             fidx = xp.argsort(key, axis=1)[:, :k]                    # (R,k)
             fok = xp.take_along_axis(feas, fidx, axis=1)             # (R,k)
-            g = fd_directions(f, xp.take_along_axis(preX, fidx[..., None], axis=1),
-                              n, ne)
-            own = own + (4 * n) * xp.sum(fok, axis=1).astype(DTYPE)
-            calls = calls + 4 * n * k
-            g = xp.where(fok[..., None, None], g.astype(SDTYPE), math.nan)
-            gfd[xp.arange(n_runs)[:, None], fidx] = g
+            # feasible samples sort first, so fok is a prefix of True values;
+            # only the widest run's prefix needs computing
+            width = int(xp.max(xp.sum(fok, axis=1)))
+            if width > 0:
+                fidx, fok = fidx[:, :width], fok[:, :width]
+                g = fd_directions(
+                    f, xp.take_along_axis(preX, fidx[..., None], axis=1), n, ne)
+                own = own + (4 * n) * xp.sum(fok, axis=1).astype(DTYPE)
+                calls = calls + 4 * n * width
+                g = xp.where(fok[..., None, None], g.astype(SDTYPE), math.nan)
+                gfd[xp.arange(n_runs)[:, None], fidx] = g
 
         buf_P.append(pre)
         buf_y.append(pref * norm)
@@ -422,16 +428,25 @@ class _GNNSalpBase(_Base):
                 pick = xp.concatenate([idx, extra], axis=1)         # (R,k)
                 sel = xp.take_along_axis(allc, pick[..., None], axis=1)
                 k = pick.shape[1]
-                vals = _eval_flat(f, sel.reshape(n_runs * k, dim), ne,
-                                  per_run=0).reshape(n_runs, k)
-                own = own + (k - xp.sum(dup, axis=1)).astype(DTYPE)
-                calls = calls + k
-                score = _scatter(score, pick, vals)
-                is_exact = _scatter(is_exact, pick, xp.ones_like(pick, dtype=bool))
                 fresh = xp.concatenate(
                     [xp.ones_like(idx, dtype=bool), ~dup], axis=1)
+                # Under a budget cap a run evaluates only what it can still
+                # afford, best-screened first; a run with nothing left
+                # evaluates nothing and holds its incumbent.
+                keep = xp.ones_like(fresh)
+                if max_evals is not None:
+                    room = xp.maximum(max_evals - spent(), 0.0)
+                    keep = xp.cumsum(fresh, axis=1) <= room[:, None]
+                vals = _eval_flat(f, sel.reshape(n_runs * k, dim), ne,
+                                  per_run=0).reshape(n_runs, k)
+                own = own + xp.sum(fresh & keep, axis=1).astype(DTYPE)
+                calls = calls + k
+                old = xp.take_along_axis(score, pick, axis=1)
+                score = _scatter(score, pick, xp.where(keep, vals, old))
+                was = xp.take_along_axis(is_exact, pick, axis=1)
+                is_exact = _scatter(is_exact, pick, keep | was)
                 new_P.append(sel.reshape(n_runs, k, n, 2))
-                new_y.append(xp.where(fresh, vals * norm, math.nan))
+                new_y.append(xp.where(fresh & keep, vals * norm, math.nan))
             else:
                 # ---- TRUE uncertainty gate: evaluate only what it admits ----
                 gate = std >= sigma_thr                  # CPU: std >= threshold
