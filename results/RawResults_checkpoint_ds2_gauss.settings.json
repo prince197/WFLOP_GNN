@@ -1,0 +1,13 @@
+{
+  "algo_kwargs": {},
+  "budget": null,
+  "dataset": 2,
+  "dtype": "float64",
+  "iters": 100,
+  "pop": 30,
+  "runs": 30,
+  "surrogate_dtype": "float32",
+  "ti": 0.075,
+  "uq_max_iters": null,
+  "wake": "gaussian"
+}
