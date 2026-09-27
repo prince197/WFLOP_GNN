@@ -1874,7 +1874,7 @@ Wilcoxon signed-rank tests with GNN-LX-SSA as reference at the matched cap of 3,
 
 ### Table S29
 
-Three-arm ablation under the Gaussian wake over 30 runs per cell, in the format of Table 16. The LX-SSA and GNN-LX-SSA results are the runs of the Gaussian campaign, and LX-SSA+R was run with the same code, seeds and settings. Means and minima are taken over the feasible runs of each cell, and bold marks the lowest value in each cell.
+Three-arm ablation under the Gaussian wake over 30 runs per cell, in the format of Table 17. The LX-SSA and GNN-LX-SSA results are the runs of the Gaussian campaign, and LX-SSA+R was run with the same code, seeds and settings. Means and minima are taken over the feasible runs of each cell, and bold marks the lowest value in each cell.
 
 | Configuration | Arm | Feasible runs | Exact evaluations | Mean wake loss (kW) | Best wake loss (kW) |
 |---|---|---|---|---|---|

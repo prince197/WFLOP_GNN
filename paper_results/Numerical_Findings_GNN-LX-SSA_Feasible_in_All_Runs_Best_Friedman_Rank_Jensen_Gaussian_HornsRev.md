@@ -4,7 +4,7 @@ Paper: *GNN-LX-SSA: A repair-based, graph-surrogate-assisted Laplacian salp swar
 wind farm layout optimization* (Solanki, Dwivedi, Garg, Shukla).
 
 This file collects the headline numbers of every campaign run for the paper. Complete tables are in
-`Main_Text_Tables_1-19_Capacity_Feasibility_Ranks_Statistics_Ablation.md` and
+`Main_Text_Tables_1-20_Capacity_Feasibility_Ranks_Statistics_PowerCurve_Ablation.md` and
 `Supplementary_Tables_S1-S32_Detailed_Results_Jensen_and_Gaussian.md`. The per-run data are in `data/`.
 
 Units: power and wake loss in kW. The raw CSV columns `WakeLoss` and `EnergyProduction` of the benchmark
@@ -24,6 +24,7 @@ campaigns are in working units (1 wu = 1/15 kW). The Horns Rev CSVs are already 
 | Runs per data set | 10,530 (9 × 39 × 30) |
 | Minimum spacing | 4D = 308 m |
 | Wake models | Jensen (benchmark cone formulation) and Gaussian (Bastankhah & Porté-Agel) |
+| Power curves | Benchmark linearised ramp, and the tabulated GE 1.5 MW / 77 m curve (NREL turbine-models) |
 | Population / iterations | 30 / 100 |
 
 ## 2. Attainable capacity of the benchmark farms (Tables 2 and 3)
@@ -74,7 +75,7 @@ The published maxima lie below the constructive lower bound by 5, 14 and 28 turb
 - GNN-LX-SSA budget B(N) = 1,470 + 64N, recorded averages 1,814 / 1,942 / 2,070 at 500 / 750 / 1000 m. Surrogate inferences per run: 9,000.
 - The seven fixed-budget baselines spend 1.54× and LX-SSA 3.06× the mean GNN-LX-SSA budget.
 
-## 5. Ablation: repair map against surrogate (Tables 16, 17 and 19)
+## 5. Ablation: repair map against surrogate (Tables 17, 18 and 20)
 
 Three arms at the largest configuration of each farm size (30 runs each):
 
@@ -105,7 +106,7 @@ GNN-LX-SSA against LX-SSA+R over all 39 configurations:
 - Price in wake loss: 3–7% at own budgets under Jensen, none at equal cost. Under the Gaussian wake, 13–19% at own budgets and 2–5% at equal cost.
 - Summary: the repair map makes GNN-LX-SSA feasible and accurate, and the GNN surrogate makes it cheap.
 
-## 6. Gaussian wake (Table 18, Supplementary Tables S20 to S29)
+## 6. Gaussian wake (Table 19, Supplementary Tables S20 to S29)
 
 | Algorithm | Feasible runs | DS1 Jensen rank | DS1 Gaussian rank | DS1 p (Holm) | DS2 Jensen rank | DS2 Gaussian rank | DS2 p (Holm) |
 |---|---|---|---|---|---|---|---|
@@ -127,7 +128,42 @@ GNN-LX-SSA against LX-SSA+R over all 39 configurations:
 - Agreement with the Jensen ordering: Kendall τ = 0.83 (DS1) and 0.67 (DS2).
 - Smallest penalized objective 1.4 × 10^15 against largest feasible objective 3.3 × 10^4.
 
-## 7. Computational cost (Table 8)
+## 7. Commercial power curve: GE 1.5 MW, 77 m (Table 16)
+
+The whole Jensen campaign (9 algorithms × 39 configurations × 30 runs × 2 data sets) was re-run with the
+tabulated power curve of the GE 1.5 MW turbine with a 77 m rotor (NREL turbine-models library,
+DOE_GE_1.5MW_77, DOI 10.11578/dc.20210112.1). This turbine has the benchmark's rotor, rating, cut-in and
+cut-out speeds and reaches rated power at 14.5 m/s. Seeds and settings are unchanged; only the power
+curve differs. The expected-power integration agrees with adaptive quadrature to within 1.4 × 10^-4.
+
+Expected power of one unwaked turbine:
+
+| Data set | Linear ramp (benchmark) | GE 1.5 MW curve | Linear vs real |
+|---|---|---|---|
+| DS1 | 936.38 kW | 973.49 kW | −3.8% |
+| DS2 | 487.69 kW | 540.61 kW | −9.8% |
+
+(Against the idealised cubic law the linear ramp is +21.0% and +57.1%, so it lies between the two.)
+
+| Algorithm | Feasible runs | DS1 linear rank | DS1 GE rank | DS1 p (Holm) | DS2 linear rank | DS2 GE rank | DS2 p (Holm) |
+|---|---|---|---|---|---|---|---|
+| **GNN-LX-SSA** | **1,170 / 1,170** | 2.26 | **2.33** | — | 1.92 | **1.92** | — |
+| PF | 1,053 / 1,170 | 2.95 | 2.99 | < 0.001 | 3.40 | 3.71 | < 0.001 |
+| BBO | 1,087 / 1,170 | 3.03 | 3.18 | 0.249 | 3.31 | 3.08 | 0.003 |
+| LX-SSA | 1,117 / 1,170 | 4.23 | 4.22 | < 0.001 | 4.45 | 4.29 | < 0.001 |
+| GWO | 1,088 / 1,170 | 5.04 | 4.88 | < 0.001 | 4.53 | 4.50 | < 0.001 |
+| SSA | 1,091 / 1,170 | 5.58 | 5.40 | < 0.001 | 5.71 | 5.65 | < 0.001 |
+| PSO | 774 / 1,170 | 6.37 | 6.47 | < 0.001 | 6.21 | 6.37 | < 0.001 |
+| GA | 778 / 1,170 | 7.28 | 7.29 | < 0.001 | 7.19 | 7.24 | < 0.001 |
+| DE | 650 / 1,170 | 8.27 | 8.23 | < 0.001 | 8.29 | 8.23 | < 0.001 |
+
+- The ordering of all nine algorithms is identical under the two curves in both data sets (Kendall τ = 1.00).
+- Friedman χ² (tie-corrected) = 186.7 (DS1) and 187.8 (DS2), p < 1e-30.
+- Matched budget (3,030 evaluations): GNN-LX-SSA ranks 2.38 (DS1) and 1.83 (DS2), first in both.
+- GNN-LX-SSA budget: 1,544 – 2,592 exact evaluations per run (mean 1,968).
+- Baselines infeasible in 1,722 runs per data set (same as with the linear ramp); 27 cells with no feasible run.
+
+## 8. Computational cost (Table 8)
 
 | Arm | Mean amortized run time (s) | Mean exact evaluations | Amortized time per exact evaluation (ms) |
 |---|---|---|---|
@@ -138,7 +174,7 @@ GNN-LX-SSA against LX-SSA+R over all 39 configurations:
 An exact evaluation would have to cost about 1.6 ms more for the surrogate-assisted arm to break even in
 elapsed time on this machine. No wall-clock saving is claimed.
 
-## 8. Horns Rev 1 real wind farm (80 turbines, in progress)
+## 9. Horns Rev 1 real wind farm (80 turbines, in progress)
 
 Setup: 80 Vestas V80 turbines (D = 80 m), constant C_T = 0.8, PyWake Hornsrev1 12-sector wind rose, TI = 0.1,
 convex hull of the as-built layout as boundary, minimum spacing 4D = 320 m. Jensen K = 0.04, Gaussian k* = 0.04205.

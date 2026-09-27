@@ -1,6 +1,6 @@
-# Main-text tables 1 to 19: capacity bounds, feasibility, ranks, statistical tests, budget and ablation
+# Main-text tables 1 to 20: capacity bounds, feasibility, ranks, statistical tests, power-curve sensitivity, budget and ablation
 
-All 19 tables of the manuscript, converted from the LaTeX source with their printed numbers and captions. Power and wake-loss values are in kW. Colour highlighting of the PDF is not reproduced. Regenerate with `scripts/tex_tables_to_md.py`.
+All 20 tables of the manuscript, converted from the LaTeX source with their printed numbers and captions. Power and wake-loss values are in kW. Colour highlighting of the PDF is not reproduced. Regenerate with `scripts/tex_tables_to_md.py`.
 
 ### Table 1
 
@@ -253,6 +253,23 @@ Average Friedman ranks at each algorithm's own budget (full) and at the common c
 
 ### Table 16
 
+Friedman average ranks of the Jensen campaign under the linearised power ramp of Section 3.3 and under the tabulated power curve of the GE 1.5 MW turbine, for each wind data set, with the Holm-corrected Wilcoxon signed-rank p-value of GNN-LX-SSA against each competitor under the commercial curve. The feasible-run counts refer to the commercial curve and are identical in the two data sets. A lower rank is better.
+
+|  |  | Wind Data Set 1 | Wind Data Set 2 |  |  |  |  |
+|---|---|---|---|---|---|---|---|
+| Algorithm | Feasible runs | Linear rank | GE 1.5 MW rank | p (Holm) | Linear rank | GE 1.5 MW rank | p (Holm) |
+| GNN-LX-SSA | 1,170 / 1,170 | 2.26 | 2.33 | — | 1.92 | 1.92 | — |
+| PF | 1,053 / 1,170 | 2.95 | 2.99 | < 0.001 | 3.40 | 3.71 | < 0.001 |
+| BBO | 1,087 / 1,170 | 3.03 | 3.18 | 0.249 | 3.31 | 3.08 | 0.003 |
+| LX-SSA | 1,117 / 1,170 | 4.23 | 4.22 | < 0.001 | 4.45 | 4.29 | < 0.001 |
+| GWO | 1,088 / 1,170 | 5.04 | 4.88 | < 0.001 | 4.53 | 4.50 | < 0.001 |
+| SSA | 1,091 / 1,170 | 5.58 | 5.40 | < 0.001 | 5.71 | 5.65 | < 0.001 |
+| PSO | 774 / 1,170 | 6.37 | 6.47 | < 0.001 | 6.21 | 6.37 | < 0.001 |
+| GA | 778 / 1,170 | 7.28 | 7.29 | < 0.001 | 7.19 | 7.24 | < 0.001 |
+| DE | 650 / 1,170 | 8.27 | 8.23 | < 0.001 | 8.29 | 8.23 | < 0.001 |
+
+### Table 17
+
 Three-arm ablation over 30 runs per cell. LX-SSA penalizes constraint violations. LX-SSA+R applies the repair map of Section 5.5 and evaluates every candidate exactly. GNN-LX-SSA adds the GNWM surrogate, which screens candidates and reduces the exact-evaluation budget to at most B(N) = 1,470 + 64N. Means and minima are over the feasible runs, and bold marks the lowest value in each cell. The GNN-LX-SSA rows are the campaign's own runs, and the other two arms use the same code, seeds and settings.
 
 | Configuration | Arm | Feasible runs | Exact evaluations | Mean wake loss (kW) | Best wake loss (kW) |
@@ -276,7 +293,7 @@ Three-arm ablation over 30 runs per cell. LX-SSA penalizes constraint violations
 |  | LX-SSA+R | 30 / 30 | 6,030 | 551.7 | 504.0 |
 |  | GNN-LX-SSA | 30 / 30 | 2,582 | 564.1 | 510.2 |
 
-### Table 17
+### Table 18
 
 GNN-LX-SSA against the same search without the surrogate (LX-SSA+R) over all 39 configurations of each wind data set. Own budgets compares the per-configuration mean wake loss over 30 runs, with GNN-LX-SSA at 1,968 and LX-SSA+R at 6,030 exact evaluations per run on average. Equal cost compares the median over 30 runs of the best-so-far wake loss, with both arms read at the exact-evaluation count of GNN-LX-SSA in each configuration. Counts give the configurations in which each arm is lower, and ties are two- and three-turbine cases with the same optimum. The ratio is GNN-LX-SSA over LX-SSA+R, as the median over configurations with values of at least 1/15 kW, and p is from the two-sided Wilcoxon signed-rank test over configurations.
 
@@ -287,7 +304,7 @@ GNN-LX-SSA against the same search without the surrogate (LX-SSA+R) over all 39 
 | Wind Data Set 2 | Own budgets | 6 | 31 | 2 | 1.033 | < 0.001 |
 |  | Equal cost | 19 | 16 | 4 | 0.997 | 0.73 |
 
-### Table 18
+### Table 19
 
 Friedman average ranks under the Jensen wake (Section 9) and under the Gaussian wake (this section) for each wind data set, with the Holm-corrected Wilcoxon signed-rank p-value of GNN-LX-SSA against each competitor under the Gaussian wake. The feasible-run counts refer to the Gaussian wake and are identical in the two data sets. A lower rank is better.
 
@@ -304,9 +321,9 @@ Friedman average ranks under the Jensen wake (Section 9) and under the Gaussian 
 | GA | 778 / 1,170 | 7.28 | 7.82 | < 0.001 | 7.19 | 7.90 | < 0.001 |
 | DE | 650 / 1,170 | 8.27 | 8.12 | < 0.001 | 8.29 | 8.04 | < 0.001 |
 
-### Table 19
+### Table 20
 
-GNN-LX-SSA against the same search without the surrogate (LX-SSA+R) over all 39 configurations of each wind data set under the Gaussian wake, in the format of Table 17. The Own budgets rows give the per-configuration mean wake loss over 30 runs, with GNN-LX-SSA at 1,968 and LX-SSA+R at 6,030 exact evaluations per run on average. The Equal cost rows give the median over 30 runs of the best-so-far wake loss, with both arms read at the exact-evaluation count of GNN-LX-SSA in each configuration. The ratio is the value of GNN-LX-SSA divided by that of LX-SSA+R, the median over configurations with values of at least 1/15 kW, and p is from the two-sided Wilcoxon signed-rank test over configurations.
+GNN-LX-SSA against the same search without the surrogate (LX-SSA+R) over all 39 configurations of each wind data set under the Gaussian wake, in the format of Table 18. The Own budgets rows give the per-configuration mean wake loss over 30 runs, with GNN-LX-SSA at 1,968 and LX-SSA+R at 6,030 exact evaluations per run on average. The Equal cost rows give the median over 30 runs of the best-so-far wake loss, with both arms read at the exact-evaluation count of GNN-LX-SSA in each configuration. The ratio is the value of GNN-LX-SSA divided by that of LX-SSA+R, the median over configurations with values of at least 1/15 kW, and p is from the two-sided Wilcoxon signed-rank test over configurations.
 
 | Data set | Comparison | GNN-LX-SSA lower | LX-SSA+R lower | Ties | Median ratio | p |
 |---|---|---|---|---|---|---|
