@@ -1,0 +1,147 @@
+==========================================================================
+WFLOP GPU CAMPAIGN
+CPU / NumPy 2.4.6 (dtype=float64)
+batch per objective call : 30 seeds x 30 individuals = 900 layouts
+cores available          : 4
+worker processes         : 4 (1 BLAS thread(s) each)
+wind data set            : 2
+algorithms               : PF, BBO, LXSSA, GWO
+regime                   : fixed iterations (100)
+manifest                 : results/manifest_ds2_ge15_PF-BBO-LXSSA-GWO_all.json
+==========================================================================
+groups total 156 | done 0 | pending 156
+==========================================================================
+[1/156] R1000 T18 BBO         best=        8972  group=105.97s  evals/run=3030  elapsed=  1.8min  ETA=273.9min
+[2/156] R1000 T18 GWO         best=   1.078e+04  group=106.89s  evals/run=3030  elapsed=  1.8min  ETA=137.2min
+[3/156] R1000 T18 LXSSA       best=   1.004e+04  group=194.25s  evals/run=6030  elapsed=  3.2min  ETA=165.2min
+[4/156] R1000 T18 PF          best=   1.019e+04  group=107.47s  evals/run=3030  elapsed=  3.2min  ETA=123.1min
+[5/156] R1000 T17 BBO         best=        7642  group= 96.46s  evals/run=3030  elapsed=  3.4min  ETA=101.9min
+[6/156] R1000 T17 GWO         best=        9047  group= 96.68s  evals/run=3030  elapsed=  3.4min  ETA= 84.8min
+[7/156] R1000 T17 LXSSA       best=        8723  group=159.97s  evals/run=6030  elapsed=  4.5min  ETA= 94.9min
+[8/156] R1000 T17 PF          best=        8792  group= 95.44s  evals/run=3030  elapsed=  4.8min  ETA= 89.3min
+[9/156] R1000 T16 BBO         best=        6268  group= 93.16s  evals/run=3030  elapsed=  4.9min  ETA= 80.5min
+[10/156] R1000 T16 GWO         best=        7620  group= 93.03s  evals/run=3030  elapsed=  4.9min  ETA= 72.2min
+[11/156] R1000 T16 LXSSA       best=        8478  group=165.61s  evals/run=6030  elapsed=  7.2min  ETA= 95.2min
+[12/156] R1000 T16 PF          best=        8106  group= 92.50s  evals/run=3030  elapsed=  7.2min  ETA= 86.6min
+[13/156] R1000 T15 BBO         best=        5223  group= 85.20s  evals/run=3030  elapsed=  7.2min  ETA= 79.4min
+[14/156] R1000 T15 GWO         best=        6548  group= 84.51s  evals/run=3030  elapsed=  7.2min  ETA= 73.2min
+[15/156] R1000 T15 LXSSA       best=        6368  group=122.98s  evals/run=6030  elapsed=  8.4min  ETA= 78.9min
+[16/156] R1000 T15 PF          best=        6759  group= 79.92s  evals/run=3030  elapsed=  8.4min  ETA= 73.5min
+[17/156] R750 T14 BBO         best=        7567  group= 72.85s  evals/run=3030  elapsed=  8.4min  ETA= 68.7min
+[18/156] R750 T14 GWO         best=        8822  group= 74.66s  evals/run=3030  elapsed=  8.5min  ETA= 64.9min
+[19/156] R750 T14 LXSSA       best=        9568  group=108.74s  evals/run=6030  elapsed=  9.4min  ETA= 67.8min
+[20/156] R750 T14 PF          best=        9759  group= 77.10s  evals/run=3030  elapsed=  9.4min  ETA= 63.9min
+[21/156] R1000 T14 BBO         best=        4126  group= 75.12s  evals/run=3030  elapsed=  9.7min  ETA= 62.0min
+[22/156] R1000 T14 GWO         best=        5111  group= 75.79s  evals/run=3030  elapsed=  9.7min  ETA= 59.2min
+[23/156] R1000 T14 LXSSA       best=        5609  group=108.39s  evals/run=6030  elapsed= 10.8min  ETA= 62.3min
+[24/156] R1000 T14 PF          best=        5463  group= 73.95s  evals/run=3030  elapsed= 10.8min  ETA= 59.3min
+[25/156] R750 T13 BBO         best=        6263  group= 60.12s  evals/run=3030  elapsed= 10.8min  ETA= 56.5min
+[26/156] R750 T13 GWO         best=        7285  group= 61.24s  evals/run=3030  elapsed= 10.8min  ETA= 53.9min
+[27/156] R750 T13 LXSSA       best=        6988  group= 95.04s  evals/run=6030  elapsed= 12.2min  ETA= 58.4min
+[28/156] R750 T13 PF          best=        7417  group= 60.67s  evals/run=3030  elapsed= 12.2min  ETA= 55.8min
+[29/156] R1000 T13 BBO         best=        3387  group= 61.43s  evals/run=3030  elapsed= 12.2min  ETA= 53.5min
+[30/156] R1000 T13 GWO         best=        3569  group= 60.53s  evals/run=3030  elapsed= 12.2min  ETA= 51.3min
+[31/156] R1000 T13 LXSSA       best=        4114  group= 95.32s  evals/run=6030  elapsed= 13.3min  ETA= 53.4min
+[32/156] R1000 T13 PF          best=        4240  group= 61.71s  evals/run=3030  elapsed= 13.3min  ETA= 51.4min
+[33/156] R750 T12 BBO         best=        4613  group= 54.18s  evals/run=3030  elapsed= 13.3min  ETA= 49.4min
+[34/156] R750 T12 GWO         best=        5464  group= 56.18s  evals/run=3030  elapsed= 13.3min  ETA= 47.6min
+[35/156] R750 T12 LXSSA       best=        5831  group= 87.15s  evals/run=6030  elapsed= 14.1min  ETA= 48.9min
+[36/156] R750 T12 PF          best=        5479  group= 58.76s  evals/run=3030  elapsed= 14.1min  ETA= 47.1min
+[37/156] R1000 T12 BBO         best=        2435  group= 55.62s  evals/run=3030  elapsed= 14.1min  ETA= 45.5min
+[38/156] R1000 T12 GWO         best=        2976  group= 56.22s  evals/run=3030  elapsed= 14.2min  ETA= 44.1min
+[39/156] R1000 T12 LXSSA       best=        3149  group= 83.57s  evals/run=6030  elapsed= 15.2min  ETA= 45.5min
+[40/156] R1000 T12 PF          best=        3257  group= 55.99s  evals/run=3030  elapsed= 15.2min  ETA= 44.0min
+[41/156] R750 T11 BBO         best=        3955  group= 53.59s  evals/run=3030  elapsed= 15.2min  ETA= 42.6min
+[42/156] R750 T11 GWO         best=        4324  group= 53.35s  evals/run=3030  elapsed= 15.2min  ETA= 41.2min
+[43/156] R750 T11 LXSSA       best=        4578  group= 84.45s  evals/run=6030  elapsed= 16.4min  ETA= 43.2min
+[44/156] R750 T11 PF          best=        4007  group= 54.08s  evals/run=3030  elapsed= 16.4min  ETA= 41.8min
+[45/156] R1000 T11 BBO         best=        1750  group= 55.19s  evals/run=3030  elapsed= 16.4min  ETA= 40.5min
+[46/156] R1000 T11 GWO         best=        2304  group= 54.49s  evals/run=3030  elapsed= 16.4min  ETA= 39.3min
+[47/156] R1000 T11 LXSSA       best=        2080  group= 84.26s  evals/run=6030  elapsed= 17.3min  ETA= 40.2min
+[48/156] R1000 T11 PF          best=        2283  group= 56.46s  evals/run=3030  elapsed= 17.3min  ETA= 39.0min
+[49/156] R500 T10 BBO         best=   5.884e+21  group= 51.17s  evals/run=3030  elapsed= 17.3min  ETA= 37.9min
+[50/156] R500 T10 GWO         best=        6998  group= 48.94s  evals/run=3030  elapsed= 17.3min  ETA= 36.8min
+[51/156] R500 T10 LXSSA       best=        7920  group= 72.53s  evals/run=6030  elapsed= 18.1min  ETA= 37.4min
+[52/156] R500 T10 PF          best=        7882  group= 48.45s  evals/run=3030  elapsed= 18.1min  ETA= 36.3min
+[53/156] R750 T10 BBO         best=        2266  group= 48.93s  evals/run=3030  elapsed= 18.1min  ETA= 35.3min
+[54/156] R750 T10 GWO         best=        3081  group= 48.19s  evals/run=3030  elapsed= 18.1min  ETA= 34.3min
+[55/156] R750 T10 LXSSA       best=        3066  group= 72.42s  evals/run=6030  elapsed= 19.0min  ETA= 34.8min
+[56/156] R750 T10 PF          best=        2913  group= 48.38s  evals/run=3030  elapsed= 19.0min  ETA= 33.8min
+[57/156] R1000 T10 BBO         best=        1249  group= 49.02s  evals/run=3030  elapsed= 19.0min  ETA= 32.9min
+[58/156] R1000 T10 GWO         best=        1282  group= 48.00s  evals/run=3030  elapsed= 19.0min  ETA= 32.0min
+[59/156] R1000 T10 LXSSA       best=        1817  group= 72.09s  evals/run=6030  elapsed= 20.1min  ETA= 33.0min
+[60/156] R1000 T10 PF          best=        1538  group= 47.53s  evals/run=3030  elapsed= 20.1min  ETA= 32.1min
+[61/156] R500 T 9 BBO         best=        5141  group= 43.79s  evals/run=3030  elapsed= 20.1min  ETA= 31.2min
+[62/156] R500 T 9 GWO         best=        4252  group= 44.03s  evals/run=3030  elapsed= 20.1min  ETA= 30.4min
+[63/156] R500 T 9 LXSSA       best=        4782  group= 64.34s  evals/run=6030  elapsed= 20.8min  ETA= 30.6min
+[64/156] R500 T 9 PF          best=        5032  group= 45.04s  evals/run=3030  elapsed= 20.8min  ETA= 29.8min
+[65/156] R750 T 9 BBO         best=        1692  group= 44.22s  evals/run=3030  elapsed= 20.8min  ETA= 29.1min
+[66/156] R750 T 9 GWO         best=        1810  group= 44.51s  evals/run=3030  elapsed= 20.8min  ETA= 28.4min
+[67/156] R750 T 9 LXSSA       best=        2233  group= 65.85s  evals/run=6030  elapsed= 21.5min  ETA= 28.6min
+[68/156] R750 T 9 PF          best=        2097  group= 43.74s  evals/run=3030  elapsed= 21.5min  ETA= 27.9min
+[69/156] R1000 T 9 BBO         best=       769.6  group= 45.74s  evals/run=3030  elapsed= 21.5min  ETA= 27.2min
+[70/156] R1000 T 9 GWO         best=        1091  group= 45.22s  evals/run=3030  elapsed= 21.6min  ETA= 26.5min
+[71/156] R1000 T 9 LXSSA       best=        1036  group= 67.15s  evals/run=6030  elapsed= 22.3min  ETA= 26.7min
+[72/156] R1000 T 9 PF          best=       956.7  group= 46.06s  evals/run=3030  elapsed= 22.3min  ETA= 26.0min
+[73/156] R500 T 8 BBO         best=        3454  group= 39.59s  evals/run=3030  elapsed= 22.3min  ETA= 25.4min
+[74/156] R500 T 8 GWO         best=        3093  group= 39.82s  evals/run=3030  elapsed= 22.3min  ETA= 24.7min
+[75/156] R500 T 8 LXSSA       best=        3187  group= 59.95s  evals/run=6030  elapsed= 23.2min  ETA= 25.1min
+[76/156] R500 T 8 PF          best=        3135  group= 41.16s  evals/run=3030  elapsed= 23.2min  ETA= 24.4min
+[77/156] R750 T 8 BBO         best=        1232  group= 39.88s  evals/run=3030  elapsed= 23.2min  ETA= 23.8min
+[78/156] R750 T 8 GWO         best=        1329  group= 40.30s  evals/run=3030  elapsed= 23.2min  ETA= 23.2min
+[79/156] R750 T 8 LXSSA       best=        1319  group= 59.17s  evals/run=6030  elapsed= 23.9min  ETA= 23.3min
+[80/156] R750 T 8 PF          best=        1337  group= 40.77s  evals/run=3030  elapsed= 23.9min  ETA= 22.7min
+[81/156] R1000 T 8 BBO         best=       368.4  group= 40.01s  evals/run=3030  elapsed= 23.9min  ETA= 22.1min
+[82/156] R1000 T 8 GWO         best=       381.3  group= 39.31s  evals/run=3030  elapsed= 23.9min  ETA= 21.6min
+[83/156] R1000 T 8 LXSSA       best=       508.2  group= 58.79s  evals/run=6030  elapsed= 24.6min  ETA= 21.6min
+[84/156] R1000 T 8 PF          best=       652.2  group= 38.22s  evals/run=3030  elapsed= 24.6min  ETA= 21.1min
+[85/156] R500 T 7 BBO         best=        2129  group= 34.50s  evals/run=3030  elapsed= 24.6min  ETA= 20.6min
+[86/156] R500 T 7 GWO         best=        2249  group= 34.94s  evals/run=3030  elapsed= 24.6min  ETA= 20.0min
+[87/156] R500 T 7 LXSSA       best=        2254  group= 51.76s  evals/run=6030  elapsed= 25.2min  ETA= 20.0min
+[88/156] R500 T 7 PF          best=        2219  group= 33.41s  evals/run=3030  elapsed= 25.2min  ETA= 19.4min
+[89/156] R750 T 7 BBO         best=       616.3  group= 33.76s  evals/run=3030  elapsed= 25.2min  ETA= 18.9min
+[90/156] R750 T 7 GWO         best=       718.8  group= 34.37s  evals/run=3030  elapsed= 25.2min  ETA= 18.5min
+[91/156] R750 T 7 LXSSA       best=       782.1  group= 50.49s  evals/run=6030  elapsed= 25.8min  ETA= 18.5min
+[92/156] R750 T 7 PF          best=       715.1  group= 35.14s  evals/run=3030  elapsed= 25.8min  ETA= 18.0min
+[93/156] R1000 T 7 BBO         best=       241.1  group= 35.60s  evals/run=3030  elapsed= 25.8min  ETA= 17.5min
+[94/156] R1000 T 7 GWO         best=         240  group= 35.73s  evals/run=3030  elapsed= 25.8min  ETA= 17.0min
+[95/156] R1000 T 7 LXSSA       best=         253  group= 48.04s  evals/run=6030  elapsed= 26.4min  ETA= 17.0min
+[96/156] R1000 T 7 PF          best=       275.4  group= 32.03s  evals/run=3030  elapsed= 26.4min  ETA= 16.5min
+[97/156] R500 T 6 BBO         best=        1038  group= 27.46s  evals/run=3030  elapsed= 26.4min  ETA= 16.1min
+[98/156] R500 T 6 GWO         best=        1052  group= 27.27s  evals/run=3030  elapsed= 26.4min  ETA= 15.6min
+[99/156] R500 T 6 LXSSA       best=        1134  group= 40.67s  evals/run=6030  elapsed= 26.9min  ETA= 15.5min
+[100/156] R500 T 6 PF          best=        1151  group= 27.46s  evals/run=3030  elapsed= 26.9min  ETA= 15.1min
+[101/156] R750 T 6 BBO         best=       386.6  group= 27.22s  evals/run=3030  elapsed= 26.9min  ETA= 14.7min
+[102/156] R750 T 6 GWO         best=       320.6  group= 27.97s  evals/run=3030  elapsed= 26.9min  ETA= 14.3min
+[103/156] R750 T 6 LXSSA       best=       201.8  group= 41.94s  evals/run=6030  elapsed= 27.4min  ETA= 14.1min
+[104/156] R750 T 6 PF          best=       258.2  group= 28.08s  evals/run=3030  elapsed= 27.4min  ETA= 13.7min
+[105/156] R1000 T 6 BBO         best=       117.1  group= 27.30s  evals/run=3030  elapsed= 27.4min  ETA= 13.3min
+[106/156] R1000 T 6 GWO         best=         102  group= 27.50s  evals/run=3030  elapsed= 27.4min  ETA= 12.9min
+[107/156] R1000 T 6 LXSSA       best=       73.51  group= 41.51s  evals/run=6030  elapsed= 27.9min  ETA= 12.8min
+[108/156] R1000 T 6 PF          best=       90.69  group= 29.18s  evals/run=3030  elapsed= 27.9min  ETA= 12.4min
+[109/156] R500 T 5 BBO         best=         526  group= 21.87s  evals/run=3030  elapsed= 27.9min  ETA= 12.0min
+[110/156] R500 T 5 GWO         best=         590  group= 22.46s  evals/run=3030  elapsed= 27.9min  ETA= 11.7min
+[111/156] R500 T 5 LXSSA       best=       324.7  group= 31.49s  evals/run=6030  elapsed= 28.3min  ETA= 11.5min
+[112/156] R500 T 5 PF          best=       398.9  group= 20.70s  evals/run=3030  elapsed= 28.3min  ETA= 11.1min
+[113/156] R750 T 5 BBO         best=       89.21  group= 20.38s  evals/run=3030  elapsed= 28.3min  ETA= 10.8min
+[114/156] R750 T 5 GWO         best=       90.28  group= 20.40s  evals/run=3030  elapsed= 28.3min  ETA= 10.4min
+[115/156] R750 T 5 LXSSA       best=       119.6  group= 31.43s  evals/run=6030  elapsed= 28.7min  ETA= 10.2min
+[116/156] R750 T 5 PF          best=       119.6  group= 20.12s  evals/run=3030  elapsed= 28.7min  ETA=  9.9min
+[117/156] R1000 T 5 BBO         best=       49.89  group= 20.77s  evals/run=3030  elapsed= 28.7min  ETA=  9.6min
+[118/156] R1000 T 5 GWO         best=       26.42  group= 20.96s  evals/run=3030  elapsed= 28.7min  ETA=  9.2min
+[119/156] R1000 T 5 LXSSA       best=       45.33  group= 30.49s  evals/run=6030  elapsed= 29.0min  ETA=  9.0min
+[120/156] R1000 T 5 PF          best=       32.26  group= 19.95s  evals/run=3030  elapsed= 29.0min  ETA=  8.7min
+[121/156] R500 T 4 BBO         best=       191.3  group= 16.11s  evals/run=3030  elapsed= 29.0min  ETA=  8.4min
+[122/156] R500 T 4 GWO         best=       56.87  group= 15.90s  evals/run=3030  elapsed= 29.0min  ETA=  8.1min
+[123/156] R500 T 4 LXSSA       best=       53.01  group= 25.45s  evals/run=6030  elapsed= 29.3min  ETA=  7.9min
+[124/156] R500 T 4 PF          best=       76.24  group= 16.26s  evals/run=3030  elapsed= 29.3min  ETA=  7.6min
+[125/156] R750 T 4 BBO         best=       38.87  group= 16.00s  evals/run=3030  elapsed= 29.3min  ETA=  7.3min
+[126/156] R750 T 4 GWO         best=           0  group= 16.50s  evals/run=3030  elapsed= 29.3min  ETA=  7.0min
+[127/156] R750 T 4 LXSSA       best=       10.01  group= 25.26s  evals/run=6030  elapsed= 29.6min  ETA=  6.8min
+[128/156] R750 T 4 PF          best=       15.04  group= 15.51s  evals/run=3030  elapsed= 29.6min  ETA=  6.5min
+[129/156] R1000 T 4 BBO         best=           0  group= 15.18s  evals/run=3030  elapsed= 29.6min  ETA=  6.2min
+[130/156] R1000 T 4 GWO         best=           0  group= 15.85s  evals/run=3030  elapsed= 29.6min  ETA=  5.9min
+[131/156] R1000 T 4 LXSSA       best=           0  group= 25.35s  evals/run=6030  elapsed= 29.9min  ETA=  5.7min
+[132/156] R1000 T 4 PF          best=           0  group= 16.47s  evals/run=3030  elapsed= 29.9min  ETA=  5.4min
+[133/156] R500 T 3 BBO         best=       40.37  group= 12.20s  evals/run=3030  elapsed= 29.9min  ETA=  5.2min
+[134/156] R500 T 3 GWO         best=       30.85  group= 12.25s  evals/run=3030  elapsed= 29.9min  ETA=  4.9min
