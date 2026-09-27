@@ -47,8 +47,9 @@ BATCHING NOTES
 * Evaluations are counted PER RUN: the gate, the trust anchor, the
   finite-difference labels and the de-duplicated exploration probes
   can all differ from run to run.
-* Initial layouts use batched rejection sampling with a spacing-repair
-  fallback (the CPU code adds a constructive ring fallback for large N).
+* Initial layouts follow the CPU sampler (rejection sampling, then the
+  constructive ring fallback), plus a hexagonal-lattice fallback where the
+  rings are too small for N - see feasible_layouts().
 ============================================================
 """
 
@@ -117,39 +118,117 @@ def spacing_repair(P, r, passes=1, min_dist=None):
     return P
 
 
-def feasible_layouts(rng, shape, n, r, tries=30, min_dist=None):
-    """Batched rejection sampling; leftovers fixed by spacing repair.
+def feasible_layouts(rng, shape, n, r, tries=200, min_dist=None):
+    """Batched port of the CPU `_feasible_layout`, returning (..., n, 2).
 
-    shape : leading dimensions, e.g. (R, P). Returns (..., n, 2).
+    Same three stages as the CPU code, vectorised over every layout:
+
+    1. Rejection sampling: max(tries, 30n) uniform draws in the disk; a draw
+       is kept when it is at least `min_dist` from every turbine kept so far.
+    2. Constructive concentric-ring fallback for layouts that did not fill
+       up: rings at radial gap 1.02*dmin with angular spacing 1.05*dmin,
+       n random ring points, a small jitter, then boundary + spacing repair.
+    3. Hexagonal-lattice fallback - NOT in the CPU code - used only when the
+       rings hold fewer than n points (e.g. R = 500 m, where the rings hold 7
+       points but about 13 turbines fit at 308 m spacing). A lattice of pitch
+       1.02*dmin with a random rotation and offset is drawn until it places
+       n points inside the disk; the CPU code would instead return an
+       infeasible best-effort layout here.
+
+    Anything still short after 3 gets the CPU's best effort: random points
+    plus spacing repair.
     """
     md = 8.0 * _WTR if min_dist is None else min_dist
-    P = xp.zeros(shape + (n, 2), dtype=DTYPE)
+    B = int(np.prod(shape)) if len(shape) else 1
 
-    def sample():
-        rad = r * xp.sqrt(xp.asarray(rng.random(shape), dtype=DTYPE))
-        ang = 2 * math.pi * xp.asarray(rng.random(shape), dtype=DTYPE)
+    def disk(size):
+        rad = r * xp.sqrt(xp.asarray(rng.random(size), dtype=DTYPE))
+        ang = 2 * math.pi * xp.asarray(rng.random(size), dtype=DTYPE)
         return xp.stack([rad * xp.cos(ang), rad * xp.sin(ang)], axis=-1)
 
-    for k in range(n):
-        cand = sample()
-        accepted = xp.zeros(shape, dtype=bool)
-        for _ in range(tries):
-            if k == 0:
-                ok = xp.ones(shape, dtype=bool)
-            else:
-                d = xp.sqrt(xp.sum((P[..., :k, :] - cand[..., None, :]) ** 2,
-                                   axis=-1))
-                ok = xp.all(d >= md, axis=-1)
-            take = ok & (~accepted)
-            P[..., k, :] = xp.where(take[..., None], cand, P[..., k, :])
-            accepted = accepted | ok
-            if not USING_GPU and bool(xp.all(accepted)):
-                break               # same reasoning as in spacing_repair
-            cand = sample()
-        P[..., k, :] = xp.where(accepted[..., None], P[..., k, :], cand)
+    # ---- 1. rejection sampling (sequential draws, batched over layouts) ----
+    T = max(tries, 30 * n)
+    cand = disk((B, T))                                      # (B,T,2)
+    P = xp.zeros((B, n, 2), dtype=DTYPE)
+    cnt = xp.zeros(B, dtype=xp.int64)
+    rows = xp.arange(B)
+    slot = xp.arange(n)[None, :]
+    for t in range(T):
+        c = cand[:, t, :]
+        d = xp.sqrt(xp.sum((P - c[:, None, :]) ** 2, axis=-1))   # (B,n)
+        ok = xp.all(xp.where(slot < cnt[:, None], d >= md, True), axis=1)
+        ok = ok & (cnt < n)
+        k = xp.minimum(cnt, n - 1)
+        P[rows, k] = xp.where(ok[:, None], c, P[rows, k])
+        cnt = cnt + ok.astype(xp.int64)
+        if not USING_GPU and t % 25 == 0 and bool(xp.all(cnt >= n)):
+            break                   # CPU-only early exit (a sync on GPU)
+    full = cnt >= n                                          # (B,)
 
-    P = boundary_repair(P, r)
-    return spacing_repair(P, r, passes=8, min_dist=md)
+    # ---- 2. concentric rings (fixed geometry, random rotation per ring) ----
+    radii, counts = [], []
+    k = 1
+    while k * md * 1.02 <= r * 0.995:
+        R_k = k * md * 1.02
+        radii.append(R_k)
+        counts.append(max(1, int(math.floor(2 * math.pi * R_k / (md * 1.05)))))
+        k += 1
+    G = 1 + sum(counts)
+    if G >= n:
+        pts = [xp.zeros((B, 1, 2), dtype=DTYPE)]
+        for R_k, m in zip(radii, counts):
+            a0 = 2 * math.pi * xp.asarray(rng.random((B, 1)), dtype=DTYPE)
+            a = a0 + xp.asarray(np.linspace(0, 2 * math.pi, m, endpoint=False),
+                                dtype=DTYPE)[None, :]
+            pts.append(R_k * xp.stack([xp.cos(a), xp.sin(a)], axis=-1))
+        grid = xp.concatenate(pts, axis=1)                   # (B,G,2)
+        pick = xp.argsort(xp.asarray(rng.random((B, G))), axis=1)[:, :n]
+        lay = xp.take_along_axis(grid, pick[..., None], axis=1)
+        lay = lay + xp.asarray(rng.standard_normal((B, n, 2)),
+                               dtype=DTYPE) * (md * 0.02)
+        lay = spacing_repair(boundary_repair(lay, r), r, passes=8, min_dist=md)
+        return _finish(xp.where(full[:, None, None], P, lay), shape, n)
+
+    # ---- 3. hexagonal lattice (rings too small for n) ----
+    pitch = md * 1.02
+    span = int(math.ceil((r + pitch) / pitch)) + 1
+    ii, jj = np.meshgrid(np.arange(-span, span + 1), np.arange(-span, span + 1))
+    base = np.stack([(ii + 0.5 * jj) * pitch, jj * (math.sqrt(3) / 2) * pitch],
+                    axis=-1).reshape(-1, 2)
+    base = xp.asarray(base[np.hypot(base[:, 0], base[:, 1]) <= r + 2 * pitch],
+                      dtype=DTYPE)                           # (M,2)
+    M = base.shape[0]
+    lay = P.copy()
+    need = ~full
+    for _ in range(64):
+        th = 2 * math.pi * xp.asarray(rng.random(B), dtype=DTYPE)
+        off = (xp.asarray(rng.random((B, 2)), dtype=DTYPE) - 0.5) * pitch
+        cs, sn = xp.cos(th)[:, None], xp.sin(th)[:, None]
+        x = base[None, :, 0] * cs - base[None, :, 1] * sn + off[:, 0:1]
+        y = base[None, :, 0] * sn + base[None, :, 1] * cs + off[:, 1:2]
+        inside = x * x + y * y <= (r * 0.995) ** 2           # (B,M)
+        good = need & (xp.sum(inside, axis=1) >= n)
+        keys = xp.asarray(rng.random((B, M)), dtype=DTYPE) + xp.where(inside, 0.0, 2.0)
+        pick = xp.argsort(keys, axis=1)[:, :n]
+        cand_l = xp.stack([xp.take_along_axis(x, pick, axis=1),
+                           xp.take_along_axis(y, pick, axis=1)], axis=-1)
+        lay = xp.where(good[:, None, None], cand_l, lay)
+        need = need & ~good
+        if not bool(xp.any(need)):
+            break
+
+    # ---- best effort (CPU behaviour when nothing fits) ----
+    if bool(xp.any(need)):
+        fill = disk((B, n))
+        slot_ok = slot < cnt[:, None]
+        rest = xp.where(slot_ok[..., None], P, fill)
+        rest = spacing_repair(boundary_repair(rest, r), r, passes=8, min_dist=md)
+        lay = xp.where(need[:, None, None], rest, lay)
+    return _finish(xp.where(full[:, None, None], P, lay), shape, n)
+
+
+def _finish(P, shape, n):
+    return P.reshape(tuple(shape) + (n, 2))
 
 
 # ===============================================================

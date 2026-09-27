@@ -211,6 +211,11 @@ still fine — that is how a campaign is split across jobs.
 **Fidelity to the CPU original (GNN family).** The batched code follows the
 CPU implementation in `algorithms.py` on every design point:
 
+- initial and pre-training layouts come from the CPU sampler (rejection
+  sampling, then the concentric-ring fallback); **one addition**: where the
+  rings hold fewer than N points (R = 500 m, N >= 8) a hexagonal-lattice
+  fallback replaces the CPU's infeasible best-effort layout, so 98-100 % of
+  sampled layouts are feasible in every case;
 - the replay buffer is unbounded, and fine-tuning draws its 96 samples from
   each run's own buffered (labelled, feasible) samples;
 - finite-difference direction labels go to the first `n_fd` *feasible*
