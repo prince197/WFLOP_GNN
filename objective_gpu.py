@@ -104,9 +104,63 @@ SIN_T = xp.sin(THETA)[None, :, None, None]                  # (1,24,1,1)
 
 
 # ===============================================================
+# WAKE MODEL SELECTION
+# ===============================================================
+# WFLOP_WAKE=jensen (default) keeps the benchmark's Jensen top-hat wake.
+# WFLOP_WAKE=gaussian uses the Bastankhah & Porte-Agel (2014) Gaussian wake,
+# with the wake-growth rate of Niayifar & Porte-Agel (2016),
+#     k* = 0.3837 * TI + 0.003678,   TI from WFLOP_TI (default 0.075),
+# the same thrust coefficient CT, the same Katic root-sum-square
+# superposition and the same Weibull expected-power integration. Only the
+# per-pair velocity deficit changes.
+WAKE_MODEL = __import__("os").environ.get("WFLOP_WAKE", "jensen").lower()
+if WAKE_MODEL not in ("jensen", "gaussian"):
+    raise ValueError(f"WFLOP_WAKE must be 'jensen' or 'gaussian', not {WAKE_MODEL!r}")
+TI = float(__import__("os").environ.get("WFLOP_TI", 0.075))
+D_ROTOR = 2.0 * R
+K_STAR = 0.3837 * TI + 0.003678
+_BETA_G = 0.5 * (1.0 + (1.0 - CT) ** 0.5) / (1.0 - CT) ** 0.5
+EPS_G = 0.2 * _BETA_G ** 0.5
+
+
+def _gaussian_deficit(proj, lat2):
+    """Bastankhah & Porte-Agel (2014) deficit for downstream separation `proj`
+    (m, > 0 means downstream) and squared lateral offset `lat2` (m^2).
+    The square-root argument is clipped at 0 in the near wake (x < ~2D),
+    where the self-similar solution is not defined."""
+    s = K_STAR * xp.maximum(proj, 0.0) / D_ROTOR + EPS_G          # sigma / D
+    core = 1.0 - xp.sqrt(xp.clip(1.0 - CT / (8.0 * s * s), 0.0, 1.0))
+    return core * xp.exp(-lat2 / (2.0 * (s * D_ROTOR) ** 2))
+
+
+# ===============================================================
 # WAKED WIND SPEED
 # ===============================================================
 def waked_speeds(P, psi=None):
+    if WAKE_MODEL == "gaussian":
+        return waked_speeds_gaussian(P, psi)
+    return waked_speeds_jensen(P, psi)
+
+
+def waked_speeds_gaussian(P, psi=None):
+    """Gaussian-wake counterpart of waked_speeds_jensen: (B,N,2) -> (B,24,N)."""
+    x = P[:, None, :, 0]
+    y = P[:, None, :, 1]
+    dx = x[..., :, None] - x[..., None, :]     # (B,1,N,N) : i - j
+    dy = y[..., :, None] - y[..., None, :]
+    proj = dx * COS_T + dy * SIN_T             # (B,24,N,N) downstream separation of i from j
+    lat2 = xp.maximum(dx * dx + dy * dy - proj * proj, 0.0)
+    n = P.shape[1]
+    eye = xp.eye(n, dtype=bool)[None, None, :, :]
+    downstream = (proj > 0.0) & (~eye)
+    deficit = _gaussian_deficit(proj, lat2)
+    total = xp.sqrt(xp.sum(xp.where(downstream, deficit * deficit, 0.0), axis=-1))
+    total = xp.minimum(total, 0.999)          # guard: only binds for coincident (infeasible) layouts
+    base = PSI_1 if psi is None else psi
+    return base[None, :, None] * (1.0 - total)
+
+
+def waked_speeds_jensen(P, psi=None):
     """P : (B, N, 2) -> (B, 24, N) waked wind speed per sector.
 
     `psi` is the per-sector free-stream Weibull scale (Data Set II and III

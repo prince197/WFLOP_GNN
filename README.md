@@ -715,3 +715,14 @@ The strongest argument for the GPU path is what it makes affordable *next*:
 equal-budget re-runs, sensitivity analysis over the penalty coefficient, larger
 turbine counts, and the ≥30-run statistical certification protocol at several
 budgets — all of which need the objective called tens of millions more times.
+
+## Wake model
+
+`WFLOP_WAKE=jensen` (default) is the benchmark's Jensen top-hat wake.
+`WFLOP_WAKE=gaussian` switches to the Bastankhah & Porte-Agel (2014) Gaussian
+wake with k* = 0.3837 TI + 0.003678 (Niayifar & Porte-Agel 2016); set the
+turbulence intensity with `WFLOP_TI` (default 0.075). Thrust coefficient,
+root-sum-square superposition, penalty and expected-power integration are
+unchanged. Use a distinct `WFLOP_TAG` (e.g. `gauss`) so outputs do not mix with
+Jensen results; the wake model is recorded in the checkpoint fingerprint and the
+manifest.

@@ -448,6 +448,10 @@ FINAL_PATH = f"results/RawResults_ds{DATASET}{_TAG}.csv"
 CALIBRATION_PATH = f"results/uq_calibration_ds{DATASET}{_TAG}.csv"
 
 
+import objective_gpu as _OBJ
+_WAKE, _TI = _OBJ.WAKE_MODEL, _OBJ.TI
+
+
 def run_settings():
     """Everything that changes what a finished group contains. A checkpoint
     is only resumed when these match the settings it was written with -
@@ -459,7 +463,10 @@ def run_settings():
             "algo_kwargs": ALGO_KWARGS,
             "dtype": os.environ.get("WFLOP_DTYPE", "float64").lower(),
             "surrogate_dtype": os.environ.get("WFLOP_SURROGATE_DTYPE",
-                                              "float32").lower()}
+                                              "float32").lower(),
+            # the wake model only enters the fingerprint when it is not the
+            # default, so Jensen checkpoints written before it existed resume
+            **({} if _WAKE == "jensen" else {"wake": _WAKE, "ti": _TI})}
 
 # ---------------------------------------------------------------------------
 # CONVERGENCE CURVES
@@ -799,6 +806,8 @@ def write_manifest():
     manifest = {
         "written": time.strftime("%Y-%m-%d %H:%M:%S"),
         "dataset": DATASET,
+        "wake_model": _WAKE,
+        "turbulence_intensity": (_TI if _WAKE == "gaussian" else None),
         "regime": ("fixed_budget" if BUDGET else "fixed_iterations"),
         "budget": BUDGET,
         "budget_rule": ("hard cap; iterations = floor((budget - mandatory) / "
