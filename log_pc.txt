@@ -154,3 +154,20 @@ groups total 156 | done 0 | pending 156
 [141/156] R1000 T 3 DE          best=   1.455e-11  group= 13.07s  evals/run=3030  elapsed= 30.0min  ETA=  3.2min
 [142/156] R1000 T 3 GA          best=   1.455e-11  group= 13.36s  evals/run=3030  elapsed= 30.0min  ETA=  3.0min
 [143/156] R1000 T 3 PSO         best=   1.455e-11  group= 13.12s  evals/run=3030  elapsed= 30.0min  ETA=  2.7min
+[144/156] R1000 T 3 SSA         best=   1.455e-11  group= 13.42s  evals/run=3030  elapsed= 30.1min  ETA=  2.5min
+[145/156] R500 T 2 DE          best=   7.276e-12  group=  9.09s  evals/run=3030  elapsed= 30.1min  ETA=  2.3min
+[146/156] R500 T 2 GA          best=   7.276e-12  group=  8.91s  evals/run=3030  elapsed= 30.2min  ETA=  2.1min
+[147/156] R500 T 2 PSO         best=   7.276e-12  group=  9.02s  evals/run=3030  elapsed= 30.2min  ETA=  1.8min
+[148/156] R500 T 2 SSA         best=   7.276e-12  group=  9.05s  evals/run=3030  elapsed= 30.2min  ETA=  1.6min
+[149/156] R750 T 2 DE          best=   7.276e-12  group=  8.88s  evals/run=3030  elapsed= 30.3min  ETA=  1.4min
+[150/156] R750 T 2 GA          best=   7.276e-12  group=  9.11s  evals/run=3030  elapsed= 30.3min  ETA=  1.2min
+[151/156] R750 T 2 PSO         best=   7.276e-12  group=  9.69s  evals/run=3030  elapsed= 30.4min  ETA=  1.0min
+[152/156] R750 T 2 SSA         best=   7.276e-12  group=  9.37s  evals/run=3030  elapsed= 30.4min  ETA=  0.8min
+[153/156] R1000 T 2 DE          best=   7.276e-12  group=  9.62s  evals/run=3030  elapsed= 30.4min  ETA=  0.6min
+[154/156] R1000 T 2 GA          best=   7.276e-12  group=  9.14s  evals/run=3030  elapsed= 30.5min  ETA=  0.4min
+[155/156] R1000 T 2 PSO         best=   7.276e-12  group=  8.88s  evals/run=3030  elapsed= 30.5min  ETA=  0.2min
+[156/156] R1000 T 2 SSA         best=   7.276e-12  group=  8.78s  evals/run=3030  elapsed= 30.5min  ETA=  0.0min
+raw results sealed: results/RawResults_ds1_ge15_SSA-PSO-GA-DE_all.sha256
+==========================================================================
+results/RawResults_ds1_ge15_SSA-PSO-GA-DE_all.csv saved (4680 rows) in 30.5 min
+==========================================================================
