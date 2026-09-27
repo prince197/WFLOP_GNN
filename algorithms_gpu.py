@@ -553,6 +553,11 @@ def build(name, **overrides):
     point rather than only after the caller happens to have imported that
     module - the two names are otherwise indistinguishable to a caller.
     """
+    if name not in ALGORITHMS and name in ("LSHADE", "CMAES"):
+        import importlib
+        mod = importlib.import_module("modern_algorithms_gpu")
+        ALGORITHMS.setdefault("LSHADE", mod.LSHADE)
+        ALGORITHMS.setdefault("CMAES", mod.CMAES)
     if name not in ALGORITHMS and name.startswith("GNN"):
         import importlib
         importlib.import_module("gnn_algorithms_gpu")   # registers on import

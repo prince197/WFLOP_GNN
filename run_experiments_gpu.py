@@ -173,7 +173,7 @@ NUM_RUNS = 30
 POP = 30
 ITER = 100
 ALGORITHM_NAMES = ["GA", "PSO", "DE", "GWO", "BBO", "SSA", "LXSSA", "QASSA",
-                   "ACO", "PF",
+                   "ACO", "PF", "LSHADE", "CMAES",
                    "GNNLXSSA", "GNNQASSA", "GNNLXSSA_UQ", "GNNQASSA_UQ"]
 
 # WFLOP_ALGOS="GA,SSA,GNNLXSSA" runs a subset (the GNN family is far more
