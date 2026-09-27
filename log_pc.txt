@@ -1,0 +1,25 @@
+==========================================================================
+WFLOP GPU CAMPAIGN
+CPU / NumPy 2.4.6 (dtype=float64)
+batch per objective call : 30 seeds x 30 individuals = 900 layouts
+cores available          : 4
+worker processes         : 4 (1 BLAS thread(s) each)
+wind data set            : 1
+algorithms               : GNNLXSSA
+regime                   : fixed iterations (100)
+manifest                 : results/manifest_ds1_ge15_GNNLXSSA_1000.json
+note: the GNN optimizers hold large surrogate tensors; if a worker runs out of
+      memory, lower WFLOP_WORKERS.
+==========================================================================
+groups total 6 | done 0 | pending 6
+==========================================================================
+[1/6] R1000 T18 GNNLXSSA    best=        3850  group=916.46s  evals/run=2581  elapsed= 15.3min  ETA= 76.4min
+[2/6] R1000 T17 GNNLXSSA    best=        3195  group=823.59s  evals/run=2515  elapsed= 15.3min  ETA= 30.6min
+[3/6] R1000 T16 GNNLXSSA    best=        2215  group=709.33s  evals/run=2454  elapsed= 15.3min  ETA= 15.3min
+[4/6] R1000 T15 GNNLXSSA    best=        1819  group=622.66s  evals/run=2389  elapsed= 15.3min  ETA=  7.6min
+[5/6] R1000 T14 GNNLXSSA    best=        1608  group=545.91s  evals/run=2324  elapsed= 19.5min  ETA=  3.9min
+[6/6] R1000 T13 GNNLXSSA    best=        1186  group=468.67s  evals/run=2263  elapsed= 19.6min  ETA=  0.0min
+raw results sealed: results/RawResults_ds1_ge15_GNNLXSSA_1000.sha256
+==========================================================================
+results/RawResults_ds1_ge15_GNNLXSSA_1000.csv saved (180 rows) in 19.6 min
+==========================================================================
