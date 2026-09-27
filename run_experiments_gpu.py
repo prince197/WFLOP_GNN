@@ -500,7 +500,9 @@ def run_settings():
             # default, so Jensen checkpoints written before it existed resume
             **({} if _WAKE == "jensen" else {"wake": _WAKE, "ti": _TI}),
             # likewise the site, so benchmark checkpoints are unaffected
-            **({"site": SITE} if HORNSREV else {})}
+            **({"site": SITE} if HORNSREV else {}),
+            **({"hr_dirs": int(os.environ.get("WFLOP_HR_DIRS", "12"))}
+               if HORNSREV and os.environ.get("WFLOP_HR_DIRS", "12") != "12" else {})}
 
 # ---------------------------------------------------------------------------
 # CONVERGENCE CURVES

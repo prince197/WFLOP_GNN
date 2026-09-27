@@ -91,6 +91,28 @@ SECTOR_WIDTH = 30.0
 WD_MET = [SECTOR_WIDTH * i for i in range(N_SECTORS)]          # 0, 30, ... 330
 TI = 0.1
 
+# WFLOP_HR_DIRS: number of wind directions the objective evaluates (default 12,
+# the sector centres). Twelve directions are too coarse for an AEP comparison:
+# the as-built rows are aligned with sector centres and an optimizer can place
+# turbines between the sampled directions. WFLOP_HR_DIRS=36 (or any multiple of
+# 12) evaluates every 360/n degrees. Each direction takes the frequency, Weibull
+# A and k of its nearest sector centre, which is what PyWake's Hornsrev1Site
+# does for any direction grid. Frequencies are normalised to sum to 1.
+HR_DIRS = int(__import__("os").environ.get("WFLOP_HR_DIRS", "12"))
+if HR_DIRS % 12 or HR_DIRS < 12:
+    raise ValueError(f"WFLOP_HR_DIRS must be a positive multiple of 12, not {HR_DIRS}")
+if HR_DIRS != 12:
+    _wd = np.arange(HR_DIRS) * (360.0 / HR_DIRS)
+    _sec = np.rint(_wd / SECTOR_WIDTH).astype(int) % 12      # nearest sector centre
+    _per = lambda v: np.asarray(v, dtype=np.float64)[_sec]
+    _f = _per(_F_RAW)
+    SECTOR_FREQ = list(_f / _f.sum())
+    WEIBULL_A = list(_per(WEIBULL_A))
+    WEIBULL_K = list(_per(WEIBULL_K))
+    N_SECTORS = HR_DIRS
+    SECTOR_WIDTH = 360.0 / HR_DIRS
+    WD_MET = list(_wd)
+
 # Direction convention. The objective's wake geometry uses THETA, the
 # MATHEMATICAL angle (anticlockwise from +x = east) of the direction the wind
 # blows TOWARDS. A meteorological direction wd (wind FROM wd, clockwise from
@@ -183,6 +205,7 @@ def summary():
         "box_half_m": BOX_HALF,
         "sector_freq": SECTOR_FREQ, "weibull_A": WEIBULL_A,
         "weibull_k": WEIBULL_K, "wd_met_deg": WD_MET, "theta_deg": THETA_DEG,
+        "n_directions": N_SECTORS,
         "speed_bin_ms": SPEED_BIN, "cut_in": CUT_IN, "cut_out": CUT_OUT,
         "min_spacing_m": 4 * DIAMETER,
     }
