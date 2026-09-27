@@ -1,0 +1,41 @@
+==========================================================================
+WFLOP GPU CAMPAIGN
+CPU / NumPy 2.4.6 (dtype=float64)
+batch per objective call : 30 seeds x 30 individuals = 900 layouts
+cores available          : 4
+worker processes         : 4 (1 BLAS thread(s) each)
+wind data set            : 2
+algorithms               : GNNLXSSA
+regime                   : fixed iterations (100)
+manifest                 : results/manifest_ds2_ge15_GNNLXSSA_500.json
+note: the GNN optimizers hold large surrogate tensors; if a worker runs out of
+      memory, lower WFLOP_WORKERS.
+==========================================================================
+groups total 22 | done 0 | pending 22
+==========================================================================
+[1/22] R750 T14 GNNLXSSA    best=        6884  group=664.66s  evals/run=2327  elapsed= 11.1min  ETA=232.7min
+[2/22] R750 T13 GNNLXSSA    best=        5601  group=558.35s  evals/run=2263  elapsed= 11.1min  ETA=110.8min
+[3/22] R750 T12 GNNLXSSA    best=        4353  group=474.00s  evals/run=2197  elapsed= 11.1min  ETA= 70.2min
+[4/22] R750 T11 GNNLXSSA    best=        3206  group=394.59s  evals/run=2133  elapsed= 11.1min  ETA= 49.9min
+[5/22] R500 T10 GNNLXSSA    best=        5340  group=316.60s  evals/run=2070  elapsed= 11.9min  ETA= 40.3min
+[6/22] R750 T10 GNNLXSSA    best=        2259  group=315.36s  evals/run=2069  elapsed= 13.2min  ETA= 35.1min
+[7/22] R500 T 9 GNNLXSSA    best=        4192  group=260.79s  evals/run=2007  elapsed= 13.7min  ETA= 29.3min
+[8/22] R750 T 9 GNNLXSSA    best=        1712  group=260.61s  evals/run=2005  elapsed= 15.4min  ETA= 27.0min
+[9/22] R500 T 8 GNNLXSSA    best=        2532  group=199.32s  evals/run=1941  elapsed= 15.4min  ETA= 22.3min
+[10/22] R750 T 8 GNNLXSSA    best=       918.7  group=199.38s  evals/run=1943  elapsed= 16.5min  ETA= 19.8min
+[11/22] R500 T 7 GNNLXSSA    best=        1799  group=145.54s  evals/run=1877  elapsed= 16.5min  ETA= 16.5min
+[12/22] R750 T 7 GNNLXSSA    best=       471.6  group=140.08s  evals/run=1877  elapsed= 17.5min  ETA= 14.6min
+[13/22] R500 T 6 GNNLXSSA    best=       973.2  group=105.27s  evals/run=1814  elapsed= 17.5min  ETA= 12.1min
+[14/22] R750 T 6 GNNLXSSA    best=       214.9  group=107.36s  evals/run=1813  elapsed= 17.9min  ETA= 10.2min
+[15/22] R500 T 5 GNNLXSSA    best=       250.1  group= 79.15s  evals/run=1750  elapsed= 17.9min  ETA=  8.3min
+[16/22] R750 T 5 GNNLXSSA    best=       28.32  group= 82.71s  evals/run=1749  elapsed= 18.6min  ETA=  7.0min
+[17/22] R500 T 4 GNNLXSSA    best=       38.31  group= 50.38s  evals/run=1685  elapsed= 18.6min  ETA=  5.5min
+[18/22] R750 T 4 GNNLXSSA    best=           0  group= 55.53s  evals/run=1686  elapsed= 18.7min  ETA=  4.2min
+[19/22] R500 T 3 GNNLXSSA    best=           0  group= 34.25s  evals/run=1621  elapsed= 18.7min  ETA=  3.0min
+[20/22] R750 T 3 GNNLXSSA    best=           0  group= 35.11s  evals/run=1622  elapsed= 18.9min  ETA=  1.9min
+[21/22] R500 T 2 GNNLXSSA    best=           0  group= 23.33s  evals/run=1557  elapsed= 18.9min  ETA=  0.9min
+[22/22] R750 T 2 GNNLXSSA    best=           0  group= 22.07s  evals/run=1559  elapsed= 18.9min  ETA=  0.0min
+raw results sealed: results/RawResults_ds2_ge15_GNNLXSSA_500.sha256
+==========================================================================
+results/RawResults_ds2_ge15_GNNLXSSA_500.csv saved (660 rows) in 18.9 min
+==========================================================================
