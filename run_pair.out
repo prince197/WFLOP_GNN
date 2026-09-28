@@ -1,0 +1,12 @@
+On branch hr36w-14
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	log36w_gaussian_GNNLXSSA_r14.txt
+	log36w_jensen_GNNLXSSA_r14.txt
+	run_pair.out
+
+nothing added to commit but untracked files present (use "git add" to track)
+remote: 
+remote: Create a pull request for 'hr36w-14' on GitHub by visiting:        
+remote:      https://github.com/prince197/WFLOP_GNN/pull/new/hr36w-14        
+remote: 
