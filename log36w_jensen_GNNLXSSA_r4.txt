@@ -1,0 +1,19 @@
+==========================================================================
+WFLOP GPU CAMPAIGN
+CPU / NumPy 2.4.6 (dtype=float64)
+batch per objective call : 1 seeds x 30 individuals = 30 layouts
+cores available          : 4
+worker processes         : 1 (4 BLAS thread(s) each)
+wind data set            : Horns Rev 1 site (12-sector rose, N = 80, polygon)
+wake model               : jensen
+algorithms               : GNNLXSSA
+regime                   : fixed iterations (100)
+manifest                 : results/manifest_ds1_d36w_jensen_GNNLXSSA_r4_hr.json
+==========================================================================
+groups total 1 | done 0 | pending 1
+==========================================================================
+[1/1] R0 T80 GNNLXSSA    best=   1.012e+04  group=513.72s  evals/run=6548  elapsed=  8.6min  ETA=  0.0min
+raw results sealed: results/RawResults_ds1_d36w_jensen_GNNLXSSA_r4_hr.sha256
+==========================================================================
+results/RawResults_ds1_d36w_jensen_GNNLXSSA_r4_hr.csv saved (1 rows) in 8.6 min
+==========================================================================
