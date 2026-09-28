@@ -491,6 +491,21 @@ class _GNNSalpBase(_Base):
 
         # ---------------- initial population ----------------
         P0 = feasible_layouts(rng, (n_runs, pop), n, r, min_dist=min_dist)
+        # WFLOP_HR_WARM=<sigma in m> (Horns Rev only): warm start from the
+        # as-built layout. Member 0 of every run is the as-built layout itself;
+        # member j is the as-built layout with Gaussian jitter of standard
+        # deviation sigma*j/(pop-1), passed through the repair map. The
+        # pre-training layouts of the surrogate stay random.
+        _warm = __import__("os").environ.get("WFLOP_HR_WARM", "")
+        if _warm and _POLYGON:
+            import site_hornsrev as _HR
+            base = xp.asarray(_HR.REAL_LAYOUT, dtype=P0.dtype)            # (n,2)
+            sig = float(_warm) * xp.arange(pop, dtype=P0.dtype) / max(1, pop - 1)
+            jit = xp.asarray(rng.standard_normal((n_runs, pop, n, 2)), dtype=P0.dtype)
+            W = base[None, None] + sig[None, :, None, None] * jit
+            W = spacing_repair(boundary_repair(W, r), r, passes=8, min_dist=min_dist)
+            W[:, 0] = base
+            P0 = W
         popX = P0.reshape(n_runs, pop, dim)
         fit = _eval_flat(f, popX.reshape(n_runs * pop, dim), ne,
                          per_run=pop).reshape(n_runs, pop)

@@ -509,6 +509,8 @@ def run_settings():
             # likewise the site, so benchmark checkpoints are unaffected
             **({"site": SITE} if HORNSREV else {}),
             **({"shard": SHARD} if SHARD is not None else {}),
+            **({"hr_warm": float(os.environ["WFLOP_HR_WARM"])}
+               if HORNSREV and os.environ.get("WFLOP_HR_WARM") else {}),
             **({"hr_dirs": int(os.environ.get("WFLOP_HR_DIRS", "12"))}
                if HORNSREV and os.environ.get("WFLOP_HR_DIRS", "12") != "12" else {})}
 
