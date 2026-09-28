@@ -1,0 +1,410 @@
+{
+  "written": "2026-09-28 01:34:09",
+  "dataset": 1,
+  "wake_model": "gaussian",
+  "turbulence_intensity": 0.1,
+  "regime": "fixed_iterations",
+  "budget": null,
+  "budget_rule": "hard cap; iterations = floor((budget - mandatory) / per_iteration); a pair whose mandatory cost plus one iteration exceeds the budget is marked infeasible and skipped, never run over budget",
+  "settings": {
+    "runs": 1,
+    "pop": 30,
+    "iters": 100,
+    "cases": {
+      "0": [
+        80,
+        80
+      ]
+    },
+    "n_cases": 1,
+    "algorithms": [
+      "GNNLXSSA"
+    ]
+  },
+  "optimizer_parameters": {
+    "GNNLXSSA": {
+      "phi": 0.0,
+      "chi": 1.0,
+      "mu": 0.2,
+      "tau0": 0.05,
+      "hidden": 64,
+      "mp_layers": 3,
+      "n_pretrain": 40,
+      "finetune_every": 5,
+      "lambda_g": 0.5,
+      "fd_fraction": 0.25,
+      "fd_max": 16,
+      "dataset": 1
+    }
+  },
+  "algo_kwarg_overrides": {},
+  "cost_model": {
+    "n_pretrain": 40,
+    "fd_fraction": 0.25,
+    "fd_max": 16,
+    "mu": 0.2,
+    "mandatory": {
+      "GNNLXSSA": {
+        "80": 5190
+      }
+    },
+    "per_iteration": {
+      "GNNLXSSA": {
+        "80": 14
+      }
+    }
+  },
+  "surrogate": {
+    "hidden": 64,
+    "message_passing_layers": 3,
+    "dtype": "float32",
+    "node_features": 7,
+    "edge_features": 5,
+    "uq_ensemble_members": 5,
+    "uq_sigma_threshold": 0.5,
+    "note": "values as declared in DEFAULT_KWARGS; overrides above take precedence"
+  },
+  "seeding": {
+    "scheme": "crc32(radius|turbines|algorithm) -> group seed",
+    "runs_per_group": 1,
+    "seed_list": [
+      1
+    ],
+    "group_seeds": {
+      "0_80_GNNLXSSA": 1522642009
+    },
+    "note": "run k of a group is row k of the batch; the same group seed reproduces all runs exactly. A sample of group seeds is listed so a reader can verify the derivation without running anything."
+  },
+  "objective": {
+    "rotor_radius": 40.0,
+    "wake_decay": 0.04,
+    "thrust_coefficient": 0.8,
+    "min_spacing": 320.0,
+    "penalty": 10000000000.0,
+    "ideal_power_ds1": 14045.7374,
+    "ideal_power_ds2": 7315.37839468467,
+    "wind_arrays_sha256": {
+      "omega_ds1": "2f48d932eee62835",
+      "psi_ds1": "9cdd3ce475efbb84",
+      "omega_ds2": "d340d878ac944a12",
+      "psi_ds2": "059f5ff5c576e5da"
+    },
+    "omega_sums": {
+      "ds1": 1.0,
+      "ds2": 0.9999
+    },
+    "note": "the Data Set II direction weights sum to 0.9999 by design - the published table, used without renormalisation"
+  },
+  "statistical_protocol": {
+    "primary_endpoint": "WakeLoss",
+    "secondary": "EnergyProduction",
+    "runtime": "descriptive only, never significance-tested",
+    "omnibus": "Friedman per case",
+    "pairwise": "Wilcoxon signed-rank vs a PRESPECIFIED reference, gated on Friedman",
+    "multiplicity": "Holm within each declared family",
+    "effect_size": "rank-biserial with average ranks for ties",
+    "alpha": 0.05
+  },
+  "backend": {
+    "using_gpu": false,
+    "dtype": "float64",
+    "device": "CPU / NumPy 2.4.6 (dtype=float64)",
+    "workers": 1,
+    "threads_per_worker": 4
+  },
+  "versions": {
+    "python": "3.11.15",
+    "numpy": "2.4.6",
+    "pandas": "3.0.6",
+    "cupy": null,
+    "platform": "Linux-6.18.44-fc-v37-x86_64-with-glibc2.39"
+  },
+  "source_sha256": {
+    "algorithms.py": "da3e78090dc6fa25",
+    "algorithms_gpu.py": "0ae604097d4dc33f",
+    "backend.py": "95a9363ff76e7a18",
+    "combine_results.py": "50b1fc358d6ecdd1",
+    "gnn_algorithms_gpu.py": "ab4b7bd738c56343",
+    "objective.py": "14f3fab891fadab5",
+    "objective_gpu.py": "2e79357f85a18f82",
+    "preflight.py": "577d0a6397e8a81d",
+    "report.py": "9da7cc30e44c6eca",
+    "run_ablations.py": "211dc608a8c122a8",
+    "run_all.py": "76a74208f26d4bd2",
+    "run_experiments_gpu.py": "3b7ffa5b6ad643f3",
+    "site_hornsrev.py": "74029c7f459402dc",
+    "surrogate_gpu.py": "ec6bfb859c8df236",
+    "test_budget.py": "56fa2bea3f35e20c",
+    "validate_gpu.py": "7127b88568d2d6c0",
+    "validate_hornsrev.py": "3059ac7abe19d23d"
+  },
+  "site": "hornsrev",
+  "hornsrev": {
+    "turbines": 80,
+    "diameter_m": 80.0,
+    "ct": 0.8,
+    "ti": 0.1,
+    "polygon_vertices_m": [
+      [
+        -2759.0,
+        1945.5
+      ],
+      [
+        -2691.0,
+        1389.5
+      ],
+      [
+        -2418.0,
+        -833.5
+      ],
+      [
+        -2281.0,
+        -1945.5
+      ],
+      [
+        2759.0,
+        -1945.5
+      ],
+      [
+        2691.0,
+        -1389.5
+      ],
+      [
+        2418.0,
+        833.5
+      ],
+      [
+        2281.0,
+        1945.5
+      ]
+    ],
+    "polygon_area_km2": 19.612795,
+    "centroid_utm32n_m": [
+      426733.0,
+      6149501.5
+    ],
+    "box_half_m": 2759.0,
+    "sector_freq": [
+      0.011990506786571735,
+      0.011990506786571735,
+      0.013162273464956067,
+      0.013162273464956067,
+      0.013162273464956067,
+      0.017224650172246503,
+      0.017224650172246503,
+      0.017224650172246503,
+      0.023333846900005135,
+      0.023333846900005135,
+      0.023333846900005135,
+      0.02788182361215157,
+      0.02788182361215157,
+      0.02788182361215157,
+      0.021449500214495,
+      0.021449500214495,
+      0.021449500214495,
+      0.028810646954773134,
+      0.028810646954773134,
+      0.028810646954773134,
+      0.03923503372568367,
+      0.03923503372568367,
+      0.03923503372568367,
+      0.05052523383858567,
+      0.05052523383858567,
+      0.05052523383858567,
+      0.04912640049126401,
+      0.04912640049126401,
+      0.04912640049126401,
+      0.033373500333735005,
+      0.033373500333735005,
+      0.033373500333735005,
+      0.017219916838865836,
+      0.017219916838865836,
+      0.017219916838865836,
+      0.011990506786571735
+    ],
+    "weibull_A": [
+      9.176929,
+      9.176929,
+      9.782334,
+      9.782334,
+      9.782334,
+      9.531809,
+      9.531809,
+      9.531809,
+      9.909545,
+      9.909545,
+      9.909545,
+      10.04269,
+      10.04269,
+      10.04269,
+      9.593921,
+      9.593921,
+      9.593921,
+      9.584007,
+      9.584007,
+      9.584007,
+      10.51499,
+      10.51499,
+      10.51499,
+      11.39895,
+      11.39895,
+      11.39895,
+      11.68746,
+      11.68746,
+      11.68746,
+      11.63732,
+      11.63732,
+      11.63732,
+      10.08803,
+      10.08803,
+      10.08803,
+      9.176929
+    ],
+    "weibull_k": [
+      2.392578,
+      2.392578,
+      2.447266,
+      2.447266,
+      2.447266,
+      2.412109,
+      2.412109,
+      2.412109,
+      2.591797,
+      2.591797,
+      2.591797,
+      2.755859,
+      2.755859,
+      2.755859,
+      2.595703,
+      2.595703,
+      2.595703,
+      2.583984,
+      2.583984,
+      2.583984,
+      2.548828,
+      2.548828,
+      2.548828,
+      2.470703,
+      2.470703,
+      2.470703,
+      2.607422,
+      2.607422,
+      2.607422,
+      2.626953,
+      2.626953,
+      2.626953,
+      2.326172,
+      2.326172,
+      2.326172,
+      2.392578
+    ],
+    "wd_met_deg": [
+      0.0,
+      10.0,
+      20.0,
+      30.0,
+      40.0,
+      50.0,
+      60.0,
+      70.0,
+      80.0,
+      90.0,
+      100.0,
+      110.0,
+      120.0,
+      130.0,
+      140.0,
+      150.0,
+      160.0,
+      170.0,
+      180.0,
+      190.0,
+      200.0,
+      210.0,
+      220.0,
+      230.0,
+      240.0,
+      250.0,
+      260.0,
+      270.0,
+      280.0,
+      290.0,
+      300.0,
+      310.0,
+      320.0,
+      330.0,
+      340.0,
+      350.0
+    ],
+    "theta_deg": [
+      270.0,
+      260.0,
+      250.0,
+      240.0,
+      230.0,
+      220.0,
+      210.0,
+      200.0,
+      190.0,
+      180.0,
+      170.0,
+      160.0,
+      150.0,
+      140.0,
+      130.0,
+      120.0,
+      110.0,
+      100.0,
+      90.0,
+      80.0,
+      70.0,
+      60.0,
+      50.0,
+      40.0,
+      30.0,
+      20.0,
+      10.0,
+      0.0,
+      350.0,
+      340.0,
+      330.0,
+      320.0,
+      310.0,
+      300.0,
+      290.0,
+      280.0
+    ],
+    "n_directions": 36,
+    "speed_bin_ms": 0.25,
+    "cut_in": 3.0,
+    "cut_out": 25.0,
+    "min_spacing_m": 320.0,
+    "wake_decay_jensen": 0.04,
+    "k_star_gaussian": 0.042048,
+    "ideal_power_per_turbine_kw": 1061.5229211267108,
+    "search_box": [
+      -2759.0,
+      2759.0
+    ],
+    "real_layout_file": "site_hornsrev.REAL_LAYOUT",
+    "note": "constant CT = 0.8 (simplification); Jensen restricted to downstream turbines (standard NOJ); Dataset column is 1 only for file naming - the Horns Rev rose is used"
+  },
+  "tag": "d36w_gaussian_GNNLXSSA_r9_hr",
+  "checkpoint_settings": {
+    "dataset": 1,
+    "runs": 1,
+    "pop": 30,
+    "iters": 100,
+    "budget": null,
+    "uq_max_iters": null,
+    "algo_kwargs": {},
+    "dtype": "float64",
+    "surrogate_dtype": "float32",
+    "wake": "gaussian",
+    "ti": 0.1,
+    "site": "hornsrev",
+    "shard": 9,
+    "hr_warm": 160.0,
+    "hr_dirs": 36
+  }
+}
