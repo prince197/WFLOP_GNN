@@ -241,6 +241,13 @@ if os.environ.get("WFLOP_CASES"):
 if os.environ.get("WFLOP_RUNS"):
     NUM_RUNS = int(os.environ["WFLOP_RUNS"])
 
+# WFLOP_SHARD=k splits one group's runs across processes or machines: shard k
+# runs WFLOP_RUNS runs from its own group seed, crc32("radius|N|alg|shard<k>"),
+# and numbers them k*WFLOP_RUNS+1 ... (k+1)*WFLOP_RUNS, so the shards of a
+# group can be concatenated. Give every shard its own WFLOP_TAG.
+SHARD = os.environ.get("WFLOP_SHARD")
+SHARD = None if SHARD in (None, "") else int(SHARD)
+
 # ---------------------------------------------------------------------------
 # TWO EXPERIMENT REGIMES
 # ---------------------------------------------------------------------------
@@ -501,6 +508,7 @@ def run_settings():
             **({} if _WAKE == "jensen" else {"wake": _WAKE, "ti": _TI}),
             # likewise the site, so benchmark checkpoints are unaffected
             **({"site": SITE} if HORNSREV else {}),
+            **({"shard": SHARD} if SHARD is not None else {}),
             **({"hr_dirs": int(os.environ.get("WFLOP_HR_DIRS", "12"))}
                if HORNSREV and os.environ.get("WFLOP_HR_DIRS", "12") != "12" else {})}
 
@@ -669,7 +677,8 @@ def group_seed_of(radius, n_turb, alg_name):
     several worker processes it would not even be consistent within one job,
     let alone across resumes.
     """
-    return zlib.crc32(f"{radius}|{n_turb}|{alg_name}".encode()) % (2 ** 31)
+    key = f"{radius}|{n_turb}|{alg_name}" + ("" if SHARD is None else f"|shard{SHARD}")
+    return zlib.crc32(key.encode()) % (2 ** 31)
 
 
 def _init_worker():
@@ -746,7 +755,8 @@ def run_group(group):
         np.atleast_1d(np.asarray(getattr(algo, "gate_rate", 0.0), dtype=float)),
         (NUM_RUNS,))
 
-    rows = [[radius, n_turb, k + 1, alg_name,
+    first = 0 if SHARD is None else SHARD * NUM_RUNS
+    rows = [[radius, n_turb, first + k + 1, alg_name,
              float(bf[k]), float(ep[k]),
              dt / NUM_RUNS, single_dt, int(ev[k]), int(oc[k]), surro,
              strain, int(cv.shape[1] - 1), float(grate[k]),
