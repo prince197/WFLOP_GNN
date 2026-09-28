@@ -6,12 +6,12 @@ Laplacian salp swarm algorithm for constrained wind farm layout optimization*.
 | File or folder | Contents |
 |---|---|
 | `Numerical_Findings_GNN-LX-SSA_Feasible_in_All_Runs_Best_Friedman_Rank_Jensen_Gaussian_HornsRev.md` | Headline numbers of all campaigns in one place (start here) |
-| `Main_Text_Tables_1-20_Capacity_Feasibility_Ranks_Statistics_PowerCurve_Ablation.md` | All 20 tables of the manuscript |
+| `Main_Text_Tables_1-22_Capacity_Feasibility_Ranks_Statistics_PowerCurve_Ablation_HornsRev.md` | All 22 tables of the manuscript |
 | `Supplementary_Tables_S1-S32_Detailed_Results_Jensen_and_Gaussian.md` | All 32 tables of the Supplementary Material |
 | `data/jensen_benchmark/` | Per-run results, efficiency traces and ablation runs under the Jensen wake |
 | `data/gaussian_benchmark/` | The same under the Gaussian wake |
 | `data/commercial_power_curve_GE1.5MW/` | The Jensen campaign re-run with the GE 1.5 MW commercial power curve |
-| `data/hornsrev1_real_farm/` | Horns Rev 1 (80 turbines) per-run results, one file per wake model and algorithm |
+| `data/hornsrev1_real_farm/` | Horns Rev 1 (80 turbines) per-run results: 36 directions (random start and as-built start) and the first 12-direction campaign |
 | `analysis_outputs/` | JSON outputs of the analysis scripts (ranks, Friedman, Wilcoxon-Holm, matched budget, ablation, Horns Rev) |
 | `scripts/` | Analysis scripts, the LaTeX table converter and `file_name_map.tsv` |
 
@@ -33,7 +33,7 @@ python gaussabl_analysis.py    # Gaussian ablation
 python gauss_analysis.py       # Jensen vs Gaussian ranks and Kendall tau
 python reanalyze.py ge15       # commercial power curve -> reanalysis_ge15.json
 python pc_compare.py           # Table 16: linear vs GE 1.5 MW ranks
-WFLOP_CODE=/path/to/hornsrev-checkout python analyse_hr.py .   # Horns Rev (needs the hornsrev branch code)
+WFLOP_CODE=/path/to/hornsrev-checkout WFLOP_HR_DIRS=36 python analyse_hr.py <folder with RawResults_ds1_<wake>_<alg>_hr.csv>   # Horns Rev
 ```
 
 `reanalyze.py gauss` run this way reproduces the stored JSON byte for byte.

@@ -1,6 +1,6 @@
-# Main-text tables 1 to 20: capacity bounds, feasibility, ranks, statistical tests, power-curve sensitivity, budget and ablation
+# Main-text tables 1 to 22: capacity bounds, feasibility, ranks, statistical tests, power curve, ablation and Horns Rev 1
 
-All 20 tables of the manuscript, converted from the LaTeX source with their printed numbers and captions. Power and wake-loss values are in kW. Colour highlighting of the PDF is not reproduced. Regenerate with `scripts/tex_tables_to_md.py`.
+All 22 tables of the manuscript, converted from the LaTeX source with their printed numbers and captions. Power and wake-loss values are in kW, energy in GWh per year. Colour highlighting of the PDF is not reproduced. Regenerate with `scripts/tex_tables_to_md.py`.
 
 ### Table 1
 
@@ -331,4 +331,32 @@ GNN-LX-SSA against the same search without the surrogate (LX-SSA+R) over all 39 
 |  | Equal cost | 10 | 29 | 0 | 1.050 | < 0.001 |
 | Wind Data Set 2 | Own budgets | 1 | 38 | 0 | 1.129 | < 0.001 |
 |  | Equal cost | 13 | 26 | 0 | 1.021 | 0.011 |
+
+### Table 21
+
+Horns Rev 1 (80 turbines, 4D spacing, 36 wind directions). The columns give the exact evaluations per run, the feasible runs out of 30 under the Jensen (J) and the Gaussian (G) wake, and the medians over the 30 runs of the turbines outside the site, the pairs closer than 4D and the minimum spacing of the final layouts. Where two spacing values are given, they refer to the Jensen and the Gaussian wake. The baseline results are identical under the two wake models.
+
+| Algorithm | Evaluations | Feasible (J / G) | Outside | Pairs < 4D | Spacing (m) |
+|---|---|---|---|---|---|
+| GNN-LX-SSA, random start | 6,550 | 30 / 30 | 0 | 0 | 320 |
+| GNN-LX-SSA, as-built start | 6,550 | 30 / 30 | 0 | 0 | 549 / 380 |
+| BBO | 3,030 | 0 / 0 | 6.0 | 16.5 | 243 |
+| LX-SSA | 6,030 | 0 / 0 | 7.0 | 31.5 | 206 |
+| SSA | 3,030 | 0 / 0 | 9.0 | 34.5 | 191 |
+| PF | 3,030 | 0 / 0 | 17.0 | 32.0 | 95 |
+| GWO | 3,030 | 0 / 0 | 2.5 | 89.0 | 86 |
+| DE | 3,030 | 0 / 0 | 5.5 | 46.0 | 58 |
+| GA | 3,030 | 0 / 0 | 13.5 | 35.0 | 56 |
+| PSO | 3,030 | 0 / 0 | 24.0 | 32.0 | 52 |
+
+### Table 22
+
+Annual energy production (GWh per year) at Horns Rev 1, re-evaluated in PyWake at the 36 directions of the objective and at 1° directions. For GNN-LX-SSA the median of 30 runs is given with the best run in parentheses.
+
+|  | Jensen wake | Gaussian wake |  |  |
+|---|---|---|---|---|
+| Layout | 36 directions | 1° directions | 36 directions | 1° directions |
+| As-built | 654.96 | 647.96 | 689.46 | 692.11 |
+| GNN-LX-SSA, random start | 637.76 (643.76) | 634.83 (640.97) | 684.78 (686.63) | 684.70 (686.44) |
+| GNN-LX-SSA, as-built start | 655.01 (655.26) | 647.83 (648.26) | 691.42 (691.84) | 691.52 (691.87) |
 

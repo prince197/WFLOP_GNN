@@ -1,10 +1,10 @@
 """Horns Rev analysis: feasibility, violations, AEP and wake loss for every algorithm and wake model."""
 import os, sys, glob, json
-os.environ.update(WFLOP_SITE="hornsrev", WFLOP_BACKEND="cpu")
-sys.path.insert(0, os.environ.get("WFLOP_CODE", "/home/user/wflop_hr"))  # checkout of the hornsrev branch; sys.dont_write_bytecode = True
+os.environ.update(WFLOP_SITE="hornsrev", WFLOP_BACKEND="cpu"); os.environ.setdefault("WFLOP_HR_DIRS", "12")
+sys.path.insert(0, "/home/user/wflop_hr"); sys.dont_write_bytecode = True
 import numpy as np, pandas as pd
 import site_hornsrev as HR
-RES = sys.argv[1] if len(sys.argv) > 1 else os.path.dirname(os.path.abspath(__file__))
+RES = sys.argv[1] if len(sys.argv) > 1 else os.path.join(os.path.dirname(__file__), "..", "hr_results")
 POLY = np.asarray(HR.POLYGON); EDGE = np.roll(POLY, -1, 0) - POLY
 def boundary(P):
     rel = P[:, None, :] - POLY
@@ -49,7 +49,7 @@ for wake in ("jensen", "gaussian"):
                      best_idx=int(feas.ep.idxmax()), med_min_sp_feas=float(feas.min_sp_m.median()))
         wakemod[alg] = d
     out[wake] = wakemod
-json.dump(out, open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "hr_summary.json"), "w"), indent=1)
+json.dump(out, open(os.path.join(os.path.dirname(os.path.abspath(__file__)), f"hr_summary_d{os.environ['WFLOP_HR_DIRS']}.json"), "w"), indent=1)
 for w, m in out.items():
     print(w, json.dumps(m["_real"]))
     for a, d in m.items():

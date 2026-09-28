@@ -4,7 +4,7 @@ Paper: *GNN-LX-SSA: A repair-based, graph-surrogate-assisted Laplacian salp swar
 wind farm layout optimization* (Solanki, Dwivedi, Garg, Shukla).
 
 This file collects the headline numbers of every campaign run for the paper. Complete tables are in
-`Main_Text_Tables_1-20_Capacity_Feasibility_Ranks_Statistics_PowerCurve_Ablation.md` and
+`Main_Text_Tables_1-22_Capacity_Feasibility_Ranks_Statistics_PowerCurve_Ablation_HornsRev.md` and
 `Supplementary_Tables_S1-S32_Detailed_Results_Jensen_and_Gaussian.md`. The per-run data are in `data/`.
 
 Units: power and wake loss in kW. The raw CSV columns `WakeLoss` and `EnergyProduction` of the benchmark
@@ -174,33 +174,48 @@ Expected power of one unwaked turbine:
 An exact evaluation would have to cost about 1.6 ms more for the surrogate-assisted arm to break even in
 elapsed time on this machine. No wall-clock saving is claimed.
 
-## 9. Horns Rev 1 real wind farm (80 turbines, in progress)
+## 9. Horns Rev 1 real wind farm (80 turbines; Section 11, Tables 21-22)
 
-Setup: 80 Vestas V80 turbines (D = 80 m), constant C_T = 0.8, PyWake Hornsrev1 12-sector wind rose, TI = 0.1,
-convex hull of the as-built layout as boundary, minimum spacing 4D = 320 m. Jensen K = 0.04, Gaussian k* = 0.04205.
-Model agreement with PyWake: Jensen 635.583 vs 635.245 GWh, Gaussian 671.431 vs 671.162 GWh (within 0.05%).
-Exact-evaluation budget: 3,030 per run for the baselines, 6,030 for LX-SSA, at most B(80) ≈ 6,590 for GNN-LX-SSA.
+Setup: 80 Vestas V80 turbines (D = 80 m), constant C_T = 0.8, PyWake Hornsrev1 wind rose, TI = 0.1, convex hull
+of the as-built layout as boundary (19.61 km^2), minimum spacing 4D = 320 m. Jensen K = 0.04, Gaussian
+k* = 0.04205. Objective with 36 wind directions (each with its sector's frequency and Weibull parameters, as in
+PyWake); matches PyWake within 0.05%. Budget: 3,030 evaluations (baselines), 6,030 (LX-SSA), about 6,550
+(GNN-LX-SSA, at most B(80) = 6,590). 30 runs per algorithm and wake model.
 
-Real (as-built) layout, reference values:
+### Feasibility (Table 21)
 
-| Wake model | Expected power (kW) | AEP (GWh/yr) | Wake loss (%) | Min spacing (m) |
+| Algorithm | Feasible (Jensen / Gaussian) | Median turbines outside | Median pairs < 4D | Median min spacing (m) |
 |---|---|---|---|---|
-| Jensen | 72,555 | 635.6 | 14.56 | 559 (6.99D) |
-| Gaussian | 76,647 | 671.4 | 9.74 | 559 (6.99D) |
+| **GNN-LX-SSA, random start** | **30 / 30** | 0 | 0 | 320 |
+| **GNN-LX-SSA, as-built start** | **30 / 30** | 0 | 0 | 549 / 380 |
+| BBO | 0 / 0 | 6.0 | 16.5 | 243 |
+| LX-SSA | 0 / 0 | 7.0 | 31.5 | 206 |
+| SSA | 0 / 0 | 9.0 | 34.5 | 191 |
+| PF | 0 / 0 | 17.0 | 32.0 | 95 |
+| GWO | 0 / 0 | 2.5 | 89.0 | 86 |
+| DE | 0 / 0 | 5.5 | 46.0 | 58 |
+| GA | 0 / 0 | 13.5 | 35.0 | 56 |
+| PSO | 0 / 0 | 24.0 | 32.0 | 52 |
 
-Baselines (30 runs each, identical under both wake models because the penalty drives the search):
+GNN-LX-SSA: 120 / 120 runs feasible. Baselines: 0 / 480 (identical under both wakes; smallest penalized
+objective 1.75e24, BBO). The as-built layout is feasible with minimum spacing 559 m (6.99D).
 
-| Algorithm | Feasible runs | Evals | Median turbines outside site | Median pairs closer than 4D | Median min spacing (m) | Smallest penalized objective |
-|---|---|---|---|---|---|---|
-| BBO | 0/30 | 3,030 | 6.0 | 16.5 | 243.2 | 1.75e24 |
-| LX-SSA | 0/30 | 6,030 | 7.0 | 31.5 | 205.9 | 4.96e24 |
-| SSA | 0/30 | 3,030 | 9.0 | 34.5 | 190.7 | 6.83e24 |
-| PF | 0/30 | 3,030 | 17.0 | 32.0 | 95.1 | 2.26e25 |
-| GWO | 0/30 | 3,030 | 2.5 | 89.0 | 85.7 | 4.15e25 |
-| DE | 0/30 | 3,030 | 5.5 | 46.0 | 57.5 | 5.16e25 |
-| GA | 0/30 | 3,030 | 13.5 | 35.0 | 55.7 | 7.13e25 |
-| PSO | 0/30 | 3,030 | 24.0 | 32.0 | 51.9 | 1.76e26 |
+### Annual energy production, re-evaluated in PyWake (Table 22; GWh/yr, median of 30 with best in parentheses)
 
-All eight penalty-based baselines end infeasible in 240 of 240 runs under each wake model.
-GNN-LX-SSA (Jensen and Gaussian) is still running. This section will be updated with its feasibility,
-AEP and wake loss against the real layout when it finishes.
+| Layout | Jensen, 36 dirs | Jensen, 1 deg | Gaussian, 36 dirs | Gaussian, 1 deg |
+|---|---|---|---|---|
+| As-built | 654.96 | 647.96 | 689.46 | 692.11 |
+| GNN-LX-SSA, random start | 637.76 (643.76) | 634.83 (640.97) | 684.78 (686.63) | 684.70 (686.44) |
+| GNN-LX-SSA, as-built start | 655.01 (655.26) | 647.83 (648.26) | 691.42 (691.84) | 691.52 (691.87) |
+
+- Random start at 1 deg: median -2.0% (Jensen) and -1.1% (Gaussian) against the as-built layout; 0 of 60 runs exceed it.
+- As-built start: +0.29% at 36 directions (Gaussian, 30 / 30 runs), but at 1 deg -0.09% (Gaussian) and -0.02% (Jensen);
+  8 of 60 runs exceed the as-built layout, by at most 0.05%. GNN-LX-SSA reproduces the as-built layout to within 0.1%
+  at this budget but does not improve on it.
+
+### Direction resolution (Section 11.3)
+
+A first campaign with the 12 sector-centre directions gave layouts that beat the as-built layout by +1.5% (Jensen)
+and +2.4% (Gaussian) at those 12 directions, but fell 2.1% and 1.65% below it at 1 deg. The as-built AEP depends on
+the direction grid (Gaussian, PyWake): 671.16 (12 dirs), 688.11 (24), 689.47 (36), 692.22 (72), 692.11 (360).
+An energy comparison with a real layout needs a fine direction resolution, and a claimed gain should be checked at 1 deg.
