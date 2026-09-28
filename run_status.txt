@@ -1,0 +1,2 @@
+jensen GNNLXSSA run 6 exit 0
+gaussian GNNLXSSA run 6 exit 0
