@@ -12,3 +12,8 @@ manifest                 : results/manifest_ds1_d36w_gaussian_GNNLXSSA_r15_hr.js
 ==========================================================================
 groups total 1 | done 0 | pending 1
 ==========================================================================
+[1/1] R0 T80 GNNLXSSA    best=        5979  group=620.55s  evals/run=6541  elapsed= 10.3min  ETA=  0.0min
+raw results sealed: results/RawResults_ds1_d36w_gaussian_GNNLXSSA_r15_hr.sha256
+==========================================================================
+results/RawResults_ds1_d36w_gaussian_GNNLXSSA_r15_hr.csv saved (1 rows) in 10.3 min
+==========================================================================
