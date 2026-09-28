@@ -35,7 +35,7 @@ Nomenclature.
 
 ### Table 2
 
-Attainable capacity of the three benchmark farms between the constructive lower bound and the packing-density upper bound, compared with the maxima reported in the literature and the largest configurations tested here.
+Bounds on the attainable capacity of the three benchmark farms, compared with the published maxima and the largest configurations tested here.
 
 | Farm radius | Lower bound (Section 4.1) | Upper bound (Section 4.2) | Reported in the literature | Largest tested here | Spare vs. tested |
 |---|---|---|---|---|---|
@@ -45,7 +45,7 @@ Attainable capacity of the three benchmark farms between the constructive lower 
 
 ### Table 3
 
-Attainable capacity N*(r) bracketed at four spacing rules. Each cell gives the constructive lower bound and the finite-packing upper bound of (20). The published maxima are 8, 12 and 15 turbines at 500, 750 and 1000 m.
+Attainable capacity N*(r) bracketed at four spacing rules, with the constructive lower bound and the upper bound of (20) in each cell. The published maxima are 8, 12 and 15 turbines at 500, 750 and 1000 m.
 
 | Spacing | d_min | 500 m | 750 m | 1000 m | Published maxima exceeded? |
 |---|---|---|---|---|---|
@@ -136,7 +136,7 @@ GNWM training configuration (left) and architecture (right).
 
 ### Table 8
 
-Amortized wall-clock cost of all nine arms on the same 4-core CPU node, averaged over the 39 configurations of Wind Data Set 1. The 30 seeds of a configuration run together in one batched call, so the second column is the group time divided by 30. The fourth column is the second divided by the third, an accounting ratio and not a measured latency of the exact objective.
+Amortized wall-clock cost of all nine arms on one 4-core CPU node, averaged over the 39 configurations of Wind Data Set 1. The fourth column is an accounting ratio and not a measured latency of the exact objective.
 
 | Algorithm group | Mean amortized run time (s) | Mean exact evaluations | Amortized total run time per exact evaluation (ms) |
 |---|---|---|---|
@@ -146,7 +146,7 @@ Amortized wall-clock cost of all nine arms on the same 4-core CPU node, averaged
 
 ### Table 9
 
-Constraint-violation profile of each algorithm, giving its failure rate by farm size and the turbine counts at which failure begins. A dash means that the state was never reached at any tested size. The counts are identical in the two wind data sets (Section 9.1).
+Constraint-violation profile of each algorithm, with failure rates by farm size and the turbine counts at which failure begins. A dash marks a state never reached. The counts are identical in both wind data sets (Section 9.1).
 
 | Algorithm | Infeasible runs (of 1,170) | % of runs | 500 m % | 750 m % | 1000 m % | Cells with 0/30 feasible | First count with any failure 500/750/1000 m | First count where all 30 fail 500/750/1000 m |
 |---|---|---|---|---|---|---|---|---|
@@ -162,7 +162,7 @@ Constraint-violation profile of each algorithm, giving its failure rate by farm 
 
 ### Table 10
 
-Feasible layouts out of 30 independent runs for the farm radius of 500 m. The counts are identical in the two wind data sets (Section 9.1).
+Feasible layouts out of 30 independent runs at the 500 m farm radius. The counts are identical in the two wind data sets (Section 9.1).
 
 | Algorithm | 8 turbines | 9 turbines | 10 turbines |
 |---|---|---|---|
@@ -173,7 +173,7 @@ Feasible layouts out of 30 independent runs for the farm radius of 500 m. The co
 
 ### Table 11
 
-Mean rank of the per-configuration mean wake loss over feasible runs. The values are averaged rank positions, and the lowest value in each column marks the best algorithm for that panel.
+Mean rank of the per-configuration mean wake loss over feasible runs. The lowest value in each column marks the best algorithm for that panel.
 
 | Algorithm | DS1 500 m | DS1 750 m | DS1 1000 m | DS2 500 m | DS2 750 m | DS2 1000 m |
 |---|---|---|---|---|---|---|
@@ -189,7 +189,7 @@ Mean rank of the per-configuration mean wake loss over feasible runs. The values
 
 ### Table 12
 
-Objective-evaluation budget per run against overall standing. The average rank value is the mean of the per-configuration ranks and equals 1.00 only for an algorithm that is best everywhere. GNN-LX-SSA uses at most B(N) = 1,470 + 64N evaluations. Surrogate inferences involve no wake-model computation, so only the objective-evaluation column is comparable across algorithms.
+Objective-evaluation budget per run against overall standing. GNN-LX-SSA uses at most B(N) = 1,470 + 64N evaluations. Surrogate inferences involve no wake-model computation, so only the objective-evaluation column is comparable across algorithms.
 
 | Algorithm | Objective evaluations per run | Surrogate inferences | Multiple of GNN-LX-SSA | DS1 position | DS1 avg rank value | DS2 position | DS2 avg rank value |
 |---|---|---|---|---|---|---|---|
@@ -222,7 +222,7 @@ Friedman test over the 39 farm configurations. Equal performance of all nine alg
 
 ### Table 14
 
-Wilcoxon signed-rank tests with GNN-LX-SSA as reference. Green marks a significant win of GNN-LX-SSA and amber a comparison that is not significant.
+Wilcoxon signed-rank tests with GNN-LX-SSA as reference. Green marks a significant win of GNN-LX-SSA and amber a non-significant comparison.
 
 | Compared | DS1 R+ | DS1 R- | DS1 p (Holm) | DS1 r | DS2 R+ | DS2 R- | DS2 p (Holm) | DS2 r |
 |---|---|---|---|---|---|---|---|---|
@@ -237,7 +237,7 @@ Wilcoxon signed-rank tests with GNN-LX-SSA as reference. Green marks a significa
 
 ### Table 15
 
-Average Friedman ranks at each algorithm's own budget (full) and at the common cap of 3,030 exact evaluations (matched), with the number of configurations feasible by the cap. Both columns rank the best wake loss over the 30 runs of each configuration. Lower rank is better.
+Average Friedman ranks at each algorithm's own budget (full) and at the common cap of 3,030 exact evaluations (matched), with the configurations feasible by the cap. Both columns rank the best wake loss over the 30 runs. Lower rank is better.
 
 | Arm | Evals | DS1 full | DS1 matched | DS1 feas. | DS2 full | DS2 matched | DS2 feas. |
 |---|---|---|---|---|---|---|---|
@@ -253,7 +253,7 @@ Average Friedman ranks at each algorithm's own budget (full) and at the common c
 
 ### Table 16
 
-Friedman average ranks of the Jensen campaign under the linearised ramp and the GE 1.5 MW power curve, with the Holm-corrected Wilcoxon p-value of GNN-LX-SSA against each competitor under the commercial curve. Feasible-run counts refer to the commercial curve and are identical in both data sets. Lower rank is better.
+Friedman average ranks of the Jensen campaign under the linearised ramp and the GE 1.5 MW power curve, with the Holm-corrected Wilcoxon p-value of GNN-LX-SSA against each competitor under the commercial curve. Feasible-run counts refer to the commercial curve and are identical in both data sets.
 
 |  |  | Wind Data Set 1 | Wind Data Set 2 |  |  |  |  |
 |---|---|---|---|---|---|---|---|
@@ -270,7 +270,7 @@ Friedman average ranks of the Jensen campaign under the linearised ramp and the 
 
 ### Table 17
 
-Three-arm ablation over 30 runs per cell. LX-SSA penalizes constraint violations. LX-SSA+R applies the repair map of Section 5.5 and evaluates every candidate exactly. GNN-LX-SSA adds the GNWM surrogate, which reduces the exact-evaluation budget to at most B(N) = 1,470 + 64N. Means and minima are over the feasible runs, and bold marks the lowest value in each cell.
+Three-arm ablation over 30 runs per cell. LX-SSA penalizes constraint violations. LX-SSA+R applies the repair map of Section 5.5 and evaluates every candidate exactly. GNN-LX-SSA adds the GNWM surrogate, which reduces the exact-evaluation budget to at most B(N) = 1,470 + 64N. Bold marks the lowest value in each cell.
 
 | Configuration | Arm | Feasible runs | Exact evaluations | Mean wake loss (kW) | Best wake loss (kW) |
 |---|---|---|---|---|---|
@@ -295,7 +295,7 @@ Three-arm ablation over 30 runs per cell. LX-SSA penalizes constraint violations
 
 ### Table 18
 
-GNN-LX-SSA against the same search without the surrogate (LX-SSA+R) over all 39 configurations of each wind data set. Own budgets compares the per-configuration mean wake loss over 30 runs, at 1,968 and 6,030 exact evaluations per run on average. Equal cost compares the median best-so-far wake loss over 30 runs at the exact-evaluation count of GNN-LX-SSA. Counts give the configurations in which each arm is lower, and ties are two- and three-turbine cases. The ratio is the median of GNN-LX-SSA over LX-SSA+R across configurations with values of at least 1/15 kW, and p is from the two-sided Wilcoxon signed-rank test.
+GNN-LX-SSA against the same search without the surrogate (LX-SSA+R) over all 39 configurations of each wind data set. Own budgets compares the per-configuration mean wake loss over 30 runs, at 1,968 and 6,030 exact evaluations per run on average. Equal cost compares the median best-so-far wake loss over 30 runs at the exact-evaluation count of GNN-LX-SSA. Counts give the configurations in which each arm is lower. The ratio is the median of GNN-LX-SSA over LX-SSA+R, and p is from the two-sided Wilcoxon signed-rank test.
 
 | Data set | Comparison | GNN-LX-SSA lower | LX-SSA+R lower | Ties | Median ratio | p |
 |---|---|---|---|---|---|---|
@@ -306,7 +306,7 @@ GNN-LX-SSA against the same search without the surrogate (LX-SSA+R) over all 39 
 
 ### Table 19
 
-Friedman average ranks under the Jensen wake (Section 9) and the Gaussian wake for each wind data set, with the Holm-corrected Wilcoxon signed-rank p-value of GNN-LX-SSA against each competitor under the Gaussian wake. Feasible-run counts refer to the Gaussian wake and are identical in both data sets. A lower rank is better.
+Friedman average ranks under the Jensen (Section 9) and Gaussian wakes per wind data set, and Holm-corrected Wilcoxon signed-rank p-values of GNN-LX-SSA against each competitor under the Gaussian wake. Feasible-run counts refer to the Gaussian wake and are identical in both data sets. A lower rank is better.
 
 |  |  | Wind Data Set 1 | Wind Data Set 2 |  |  |  |  |
 |---|---|---|---|---|---|---|---|
@@ -323,7 +323,7 @@ Friedman average ranks under the Jensen wake (Section 9) and the Gaussian wake f
 
 ### Table 20
 
-GNN-LX-SSA against the same search without the surrogate (LX-SSA+R) over the 39 configurations of each wind data set under the Gaussian wake, in the format of Table 18. Own budgets compares the mean wake loss over 30 runs at 1,968 and 6,030 exact evaluations per run on average. Equal cost compares the median best-so-far wake loss with both arms read at the evaluation count of GNN-LX-SSA. The ratio is GNN-LX-SSA over LX-SSA+R, the median over configurations with values of at least 1/15 kW, and p is from the two-sided Wilcoxon signed-rank test over configurations.
+GNN-LX-SSA against the same search without the surrogate (LX-SSA+R) over 39 configurations per wind data set under the Gaussian wake, in the format of Table 18. Own budgets compares mean wake loss over 30 runs at 1,968 and 6,030 exact evaluations per run on average, and Equal cost compares median best-so-far wake loss at the evaluation count of GNN-LX-SSA. The ratio is GNN-LX-SSA over LX-SSA+R (median over configurations with values of at least 1/15 kW), and p is from the two-sided Wilcoxon signed-rank test.
 
 | Data set | Comparison | GNN-LX-SSA lower | LX-SSA+R lower | Ties | Median ratio | p |
 |---|---|---|---|---|---|---|
@@ -334,7 +334,7 @@ GNN-LX-SSA against the same search without the surrogate (LX-SSA+R) over the 39 
 
 ### Table 21
 
-Horns Rev 1 (80 turbines, 4D spacing, 36 wind directions). The columns give the exact evaluations per run, the feasible runs out of 30 under the Jensen (J) and the Gaussian (G) wake, and the medians over the 30 runs of the turbines outside the site, the pairs closer than 4D and the minimum spacing. Two spacing values refer to the Jensen and the Gaussian wake.
+Horns Rev 1 (80 turbines, 4D spacing, 36 wind directions). The columns give the exact evaluations per run, the feasible runs out of 30 under the Jensen (J) and the Gaussian (G) wake, and the medians over 30 runs of the turbines outside the site, the pairs closer than 4D and the minimum spacing (J / G where two values are given).
 
 | Algorithm | Evaluations | Feasible (J / G) | Outside | Pairs < 4D | Spacing (m) |
 |---|---|---|---|---|---|
@@ -359,4 +359,3 @@ Annual energy production (GWh per year) at Horns Rev 1, re-evaluated in PyWake a
 | As-built | 654.96 | 647.96 | 689.46 | 692.11 |
 | GNN-LX-SSA, random start | 637.76 (643.76) | 634.83 (640.97) | 684.78 (686.63) | 684.70 (686.44) |
 | GNN-LX-SSA, as-built start | 655.01 (655.26) | 647.83 (648.26) | 691.42 (691.84) | 691.52 (691.87) |
-
