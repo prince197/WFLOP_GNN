@@ -12,3 +12,8 @@ manifest                 : results/manifest_ds1_d36_jensen_LXSSA_hr.json
 ==========================================================================
 groups total 1 | done 0 | pending 1
 ==========================================================================
+[1/1] R0 T80 LXSSA       best=   4.965e+24  group=3036.11s  evals/run=6030  elapsed= 50.6min  ETA=  0.0min
+raw results sealed: results/RawResults_ds1_d36_jensen_LXSSA_hr.sha256
+==========================================================================
+results/RawResults_ds1_d36_jensen_LXSSA_hr.csv saved (30 rows) in 50.6 min
+==========================================================================
