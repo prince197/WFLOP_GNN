@@ -1,0 +1,13 @@
+{
+  "title": "GNN-LX-SSA: run-level results, analysis scripts and code for constrained wind farm layout optimization",
+  "upload_type": "dataset",
+  "description": "Run-level results (layouts, wake losses, evaluation budgets, efficiency checkpoints) of the Jensen, Gaussian, commercial power curve and Horns Rev 1 campaigns, the analysis scripts, and the tables of the article submitted to Renewable Energy.",
+  "creators": [
+    {"name": "Solanki, Prince", "affiliation": "IILM University", "orcid": "0000-0001-7183-1256"},
+    {"name": "Dwivedi, Pulkit", "affiliation": "Bennett University"},
+    {"name": "Garg, Vanita", "affiliation": "Amity University"},
+    {"name": "Shukla, Vinay", "affiliation": "Shanghai Jiao Tong University"}
+  ],
+  "license": "cc-by-4.0",
+  "keywords": ["wind farm layout optimization", "salp swarm algorithm", "graph neural network surrogate", "constraint handling", "repair operator"]
+}

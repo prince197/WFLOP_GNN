@@ -1,0 +1,39 @@
+cff-version: 1.2.0
+message: "If you use these data or this code, please cite the article below."
+title: "GNN-LX-SSA: run-level results, analysis scripts and code for constrained wind farm layout optimization"
+type: dataset
+authors:
+  - family-names: Solanki
+    given-names: Prince
+    affiliation: "Department of Mathematics, School of Sciences, IILM University, Greater Noida, India"
+    orcid: "https://orcid.org/0000-0001-7183-1256"
+  - family-names: Dwivedi
+    given-names: Pulkit
+    affiliation: "Department of Computer Science and Engineering, Bennett University, Greater Noida, India"
+  - family-names: Garg
+    given-names: Vanita
+    affiliation: "Department of Mathematics, Amity University, Noida, India"
+  - family-names: Shukla
+    given-names: Vinay
+    affiliation: "School of Mathematical Sciences, Shanghai Jiao Tong University, Shanghai, China"
+license: CC-BY-4.0
+keywords:
+  - wind farm layout optimization
+  - salp swarm algorithm
+  - graph neural network surrogate
+  - constraint handling
+  - repair operator
+preferred-citation:
+  type: article
+  title: "GNN-LX-SSA: A repair-based, graph-surrogate-assisted Laplacian salp swarm algorithm for constrained wind farm layout optimization"
+  authors:
+    - family-names: Solanki
+      given-names: Prince
+    - family-names: Dwivedi
+      given-names: Pulkit
+    - family-names: Garg
+      given-names: Vanita
+    - family-names: Shukla
+      given-names: Vinay
+  journal: "Renewable Energy"
+  status: submitted
