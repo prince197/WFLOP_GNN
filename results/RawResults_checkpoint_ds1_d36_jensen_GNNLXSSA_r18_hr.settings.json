@@ -1,0 +1,14 @@
+{
+  "algo_kwargs": {},
+  "budget": null,
+  "dataset": 1,
+  "dtype": "float64",
+  "hr_dirs": 36,
+  "iters": 100,
+  "pop": 30,
+  "runs": 1,
+  "shard": 18,
+  "site": "hornsrev",
+  "surrogate_dtype": "float32",
+  "uq_max_iters": null
+}
