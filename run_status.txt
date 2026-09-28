@@ -1,0 +1,7 @@
+gaussian GWO exit 0
+gaussian PSO exit 0
+gaussian PF exit 0
+gaussian SSA exit 0
+gaussian GA exit 0
+gaussian DE exit 0
+gaussian BBO exit 0

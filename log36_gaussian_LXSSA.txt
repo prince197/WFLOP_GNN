@@ -1,0 +1,14 @@
+==========================================================================
+WFLOP GPU CAMPAIGN
+CPU / NumPy 2.4.6 (dtype=float64)
+batch per objective call : 30 seeds x 30 individuals = 900 layouts
+cores available          : 4
+worker processes         : 1 (4 BLAS thread(s) each)
+wind data set            : Horns Rev 1 site (12-sector rose, N = 80, polygon)
+wake model               : gaussian
+algorithms               : LXSSA
+regime                   : fixed iterations (100)
+manifest                 : results/manifest_ds1_d36_gaussian_LXSSA_hr.json
+==========================================================================
+groups total 1 | done 0 | pending 1
+==========================================================================
